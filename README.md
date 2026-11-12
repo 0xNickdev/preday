@@ -258,10 +258,6 @@ Stated plainly:
 - **Upgradability.** The demo contract account still holds a full-access key, so its code can be replaced. A production deployment would delete that key.
 - **Cross-chain withdrawal fee** from the product plan is not implemented.
 
-## Credits
-
-Two landing page pieces are adapted from components published on [21st.dev](https://21st.dev): the amount slider by serafimcloud and the dotted globe by dev.yadhakim. Both were rebuilt for this codebase without a styling framework.
-
 ## License
 
 [MIT](LICENSE)
