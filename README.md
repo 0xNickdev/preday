@@ -279,6 +279,11 @@ Stated plainly:
 - **Upgradability.** The demo contract account still holds a full-access key, so its code can be replaced. A production deployment would delete that key.
 - **Cross-chain withdrawal fee** from the product plan is not implemented.
 
+## Disclosure
+
+- Everything in this repository was written during the hackathon, starting 12 November 2026. There is no earlier code.
+- The code was written with an AI coding assistant, under human direction and review.
+
 ## License
 
 [MIT](LICENSE)
