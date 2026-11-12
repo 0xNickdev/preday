@@ -1,80 +1,89 @@
+<div align="center">
+
 # Preday
 
-**Payday is whenever you need it.** A pay link for people paid in crypto, with a paycheck advance that pays itself back.
+**Payday is whenever you need it.**
+
+A pay link for people paid in crypto, with a paycheck advance that pays itself back.
+
+[![CI](https://github.com/0xNickdev/preday/actions/workflows/ci.yml/badge.svg)](https://github.com/0xNickdev/preday/actions/workflows/ci.yml)
+[![Demo](https://github.com/0xNickdev/preday/actions/workflows/pages.yml/badge.svg)](https://0xnickdev.github.io/preday/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
+[![NEAR testnet](https://img.shields.io/badge/NEAR-testnet-111111.svg)](https://testnet.nearblocks.io/address/preday-v0.testnet)
+[![Contracts: Rust](https://img.shields.io/badge/contracts-Rust%20%2B%20near--sdk-111111.svg)](contracts)
+[![Tests](https://img.shields.io/badge/tests-101%20contract%20%2B%2048%20service-111111.svg)](#run-it)
+
+[Live demo](https://0xnickdev.github.io/preday/) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v0.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
+
+</div>
+
+---
+
+Built for **NEAR Hackathon**, track **Real-World Money**.
 
 A freelancer claims `preday.app/anna` and sends it to clients instead of a wallet address. The client pays with any coin from any network. Dollars (USDC) arrive, the contract records the income, and after a few payments Anna can take part of her next payment early. When that payment lands, the contract takes the advance and a flat fee out of it and forwards the rest. Nobody has to remember to repay anything.
 
-- Live demo: https://0xnickdev.github.io/preday/ (NEAR testnet, no wallet needed)
-- Contract: [`preday-v0.testnet`](https://testnet.nearblocks.io/address/preday-v0.testnet)
-- Track: Real-World Money (NEAR Hackathon)
+## Contents
+
+- [Why](#why)
+- [Try it in two minutes](#try-it-in-two-minutes)
+- [How a payment moves](#how-a-payment-moves)
+- [The life of an advance](#the-life-of-an-advance)
+- [The rules](#the-rules)
+- [Architecture](#architecture)
+- [Contract interface](#contract-interface)
+- [Run it](#run-it)
+- [Status and limits](#status-and-limits)
 
 ## Why
 
-Paycheck advance is a large business in regular fintech (Dave, EarnIn, Chime MyPay), and all of it runs through a bank account or an employer's payroll system. A contractor paid in stablecoins has neither, so none of it works for them. Preday gets the same guarantee, repayment at the source, from a contract instead of a payroll integration: income passes through the contract before it reaches the worker.
+Paycheck advance is a large business in regular fintech (Dave, EarnIn, Chime MyPay), and all of it runs through a bank account or an employer's payroll system. A contractor paid in stablecoins has neither, so none of it works for them.
 
-## See it work
+| | Bank-based advance | Employer-based advance | Preday |
+| --- | --- | --- | --- |
+| Needs | A US bank account | An employer with payroll software | A pay link |
+| Works for crypto income | No | No | Yes |
+| How repayment is secured | Debit from the bank account | Payroll deduction | Income passes through the contract first |
+| What the client has to do | Nothing | Integrate | Pay a link with any coin |
 
-### In the browser (2 minutes)
+Preday gets the guarantee that makes this product work, repayment at the source, from a contract instead of a payroll integration.
 
-Open the [demo](https://0xnickdev.github.io/preday/). It creates a throwaway testnet account in your browser, so there is nothing to install.
+## Try it in two minutes
 
-| Do this | You see |
-| --- | --- |
-| Open the app, claim a name | Your dashboard and a pay link |
-| Open the pay page, pay three times with test dollars | Three payments in the dashboard |
-| Press "Verify identity", wait 2 minutes | "You can take up to $25 of it today" |
-| Press "Get $25 now" and confirm | "Advance open: $26.25" |
-| Pay the link once more | Advance closed, limit step moves from $25 to $50 |
-| Open Pool | The $1.25 fee split: $1.00 to the pool, $0.25 to the reserve |
+Open the [demo](https://0xnickdev.github.io/preday/). It creates a throwaway NEAR testnet account in your browser, so there is no wallet to install and no real money involved.
 
-The demo deployment uses 2 minutes of required history instead of 30 days. Everything else is the production rule set.
+| Step | Do this | You see |
+| :-: | --- | --- |
+| 1 | Open the app, claim a name | Your dashboard and a pay link |
+| 2 | Open the pay page, pay three times with test dollars | Three payments in the dashboard |
+| 3 | Press "Verify identity", wait 2 minutes | "You can take up to $25 of it today" |
+| 4 | Press "Get $25 now" and confirm | "Advance open: $26.25" |
+| 5 | Pay the link once more | Advance closed, limit step moves from $25 to $50 |
+| 6 | Open Pool | The $1.25 fee split: $1.00 to the pool, $0.25 to the reserve |
 
-### From a clean clone
-
-Needs Node 24+ and, for the contracts, Rust with the `wasm32-unknown-unknown` target and [cargo-near](https://github.com/near/cargo-near).
-
-```bash
-# The whole story on testnet, printed step by step (about 3 minutes)
-cd web && npm install
-echo "VITE_CONTRACT_ID=preday-v0.testnet" > .env
-npm run demo
-
-# The app
-npm run dev            # http://localhost:5173
-
-# Contracts: 92 unit tests and 9 sandbox tests with real cross-contract calls
-cd ../contracts
-for crate in preday preday-account test-usdc test-verifier; do (cd $crate && cargo near build non-reproducible-wasm); done
-cargo test --workspace
-
-# Payment service: 48 tests, plus dry quotes against the real 1Click API
-cd ../service && npm install && npm test && npm run test:live
-```
-
-`npm run demo` ends with output like this:
-
-```
-6. Anna takes a $25 advance
-   owes $25.00 + $1.25 fee, wallet: $3045.00
-7. The next $1,000 payment arrives
-   advance paid back, limit level 1, wallet: $4018.75
-   pool: $501.00 assets, $0.25 reserve, $1.25 fees earned so far
-```
+The demo deployment requires 2 minutes of payment history instead of 30 days. Everything else is the production rule set.
 
 ## How a payment moves
 
-```
-1. The client pays any coin on any network
-      to a one-time deposit address from NEAR Intents (1Click)
-2. Intents swaps it to USDC
-      and delivers it to the pay account  anna.preday.near
-3. sweep() on the pay account, callable by anyone
-      forwards all its USDC to the main contract, tagged "anna"
-4. preday :: ft_on_transfer
-      a) record the payment
-      b) an advance is open? repay principal, then the fee
-      c) split the fee: 80% to the pool, 20% to the reserve
-      d) send the rest to Anna's wallet
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client
+    participant Intents as NEAR Intents (1Click)
+    participant Pay as anna.preday.near<br/>pay account, no keys
+    participant Preday as preday contract
+    participant Pool
+    actor Anna
+
+    Client->>Intents: pays any coin on any network
+    Intents->>Pay: delivers USDC as a plain transfer
+    Note over Pay: sweep() can be called by anyone
+    Pay->>Preday: ft_transfer_call, msg {"income":"anna"}
+    Preday->>Preday: record the payment
+    alt an advance is open
+        Preday->>Pool: principal back, fee split 80% pool / 20% reserve
+    end
+    Preday->>Anna: the rest of the payment
 ```
 
 The pay account exists because an Intents payment arrives as a plain transfer with no memo. One account per person answers "whose money is this" without a trusted watcher. Each pay account has no access keys and runs shared code published once as a NEAR global contract, so it costs 0.001 NEAR and can do exactly one thing.
@@ -84,6 +93,21 @@ What NEAR does here:
 - **Intents** let the client pay with what they hold. The worker never sees a bridge.
 - **Named accounts** make a salary address readable, and global contracts make one per person cheap.
 - **The contract** makes repayment at the source impossible to talk around, and makes income history public and checkable.
+
+## The life of an advance
+
+```mermaid
+stateDiagram-v2
+    [*] --> None
+    None --> Open: request_advance
+    Open --> Open: payment smaller than what is owed
+    Open --> Closed: payment covers principal and fee
+    Open --> Late: 45 days without a payment
+    Late --> Closed: a payment covers it
+    Late --> WrittenOff: 90 days without a payment
+    Closed --> None: limit moves one step up if it was on time
+    WrittenOff --> [*]: reserve absorbs the loss, identity gets no more advances
+```
 
 ## The rules
 
@@ -106,33 +130,58 @@ All of these live in contract state and are returned by `get_params`. Changing t
 
 A 5% fee on a two-week advance is a high rate if you annualize it. The app shows the fee in dollars before the worker confirms and does not hide that.
 
-## Repository
+## Architecture
 
-```
-contracts/
-  preday/            main contract: workers, payment history, advances, the pool
-  preday-account/    the pay account. One method: sweep()
-  test-usdc/         testnet stand-in for USDC with an open mint
-  test-verifier/     testnet stand-in for an identity provider
-web/                 Vite + React + TypeScript: landing, pay page, dashboard, pool
-service/             Node service: 1Click quotes for a pay link, sweep after a payment succeeds
-scripts/             testnet deployment
+```mermaid
+flowchart LR
+    subgraph Browser
+        Web[web<br/>Vite + React + TypeScript]
+    end
+    subgraph Server
+        Service[service<br/>Node, quotes + sweep keeper]
+    end
+    subgraph NEAR
+        Preday[preday<br/>workers, history, advances, pool]
+        Account[preday-account<br/>one per pay link, global code]
+        USDC[(USDC)]
+        Verifier[identity verifier]
+    end
+    OneClick[NEAR Intents 1Click API]
+
+    Web -- views and signed calls --> Preday
+    Web -- quote for a pay link --> Service
+    Service -- quote, status --> OneClick
+    Service -- sweep --> Account
+    OneClick -- USDC --> Account
+    Account -- income --> Preday
+    Preday <--> USDC
+    Verifier -- set_verified --> Preday
 ```
 
-### Contract interface
+| Path | What it is | Stack |
+| --- | --- | --- |
+| [`contracts/preday`](contracts/preday) | Main contract: workers, payment history, advances, the pool | Rust, near-sdk 5.30 |
+| [`contracts/preday-account`](contracts/preday-account) | The pay account. One method: `sweep()` | Rust, 25.8 KB wasm |
+| [`contracts/test-usdc`](contracts/test-usdc) | Testnet stand-in for USDC with an open mint | Rust |
+| [`contracts/test-verifier`](contracts/test-verifier) | Testnet stand-in for an identity provider | Rust |
+| [`web`](web) | Landing, pay page, dashboard, pool | Vite, React, TypeScript |
+| [`service`](service) | 1Click quotes for a pay link, sweep after a payment succeeds | Node 24, no framework |
+| [`scripts`](scripts) | Testnet deployment | Bash, near CLI |
 
-```
-register(handle)                       create the keyless pay account handle.<contract>
-ft_on_transfer(sender, amount, msg)    {"income":"anna"} from a pay account, {"deposit":true} from a pool backer
-request_advance(amount)                check the limit, send USDC to the worker
-withdraw(shares)                       a backer redeems pool shares
-claim()                                collect a payout that could not be delivered earlier
-set_verified(handle, person_code)      identity provider only. One person, one handle
-mark_late(handle) / write_off(handle)  callable by anyone once the deadline has passed
-propose_params(params) / apply_params()   owner proposes, anyone applies after the delay
+## Contract interface
 
-get_worker  get_handle  get_limit  get_payments  get_pool  get_shares  get_params  get_pending_params  get_config
-```
+| Method | Who can call | What it does |
+| --- | --- | --- |
+| `register(handle)` | Anyone | Creates the keyless pay account `handle.<contract>` |
+| `ft_on_transfer` | The USDC token | `{"income":"anna"}` from a pay account, `{"deposit":true}` from a pool backer |
+| `request_advance(amount)` | A worker | Checks the limit, sends USDC to the worker |
+| `withdraw(shares)` | A pool backer | Redeems pool shares |
+| `claim()` | A worker | Collects a payout that could not be delivered earlier |
+| `set_verified(handle, person_code)` | The identity verifier | One person, one handle |
+| `mark_late(handle)`, `write_off(handle)` | Anyone, after the deadline | Moves a stale advance along |
+| `propose_params`, `apply_params` | Owner proposes, anyone applies after the delay | Timelocked rule changes |
+
+Views: `get_worker`, `get_handle`, `get_limit`, `get_payments`, `get_pool`, `get_shares`, `get_params`, `get_pending_params`, `get_config`.
 
 What the contract cannot do:
 
@@ -140,29 +189,72 @@ What the contract cannot do:
 - A pay account has no keys. Only its code can act, and the code only forwards USDC to the main contract.
 - Amounts are integers of USDC minimal units. There is no floating point anywhere.
 
-## Status
+## Run it
 
-Built for the NEAR Hackathon, started on 12 November 2026. It is not connected to any earlier project.
+Needs Node 24+. The contracts also need Rust with the `wasm32-unknown-unknown` target and [cargo-near](https://github.com/near/cargo-near).
 
-Working and verified on testnet: pay accounts on global code, income recording, limits, advances, repayment from the next payment, partial repayment, late and write-off, the pool and its reserve, the timelock, and the full browser flow.
+```bash
+git clone https://github.com/0xNickdev/preday && cd preday
 
-Not there yet, stated plainly:
+# 1. The whole story on testnet, printed step by step (about 3 minutes)
+cd web && npm install
+echo "VITE_CONTRACT_ID=preday-v0.testnet" > .env
+npm run demo
 
-- **Mainnet.** NEAR Intents has no testnet, so on testnet a "payment" is test dollars minted to the pay account. From there it takes the same path. The service that issues real 1Click quotes is built and its request format is verified with dry quotes against the live API, but no real payment has been routed end to end.
-- **Identity.** The testnet verifier approves everyone. The contract stores only a hash and already enforces one person, one handle. A real provider plugs in as the `verifier` account.
-- **Wallets.** The demo signs with a throwaway key kept in the browser. Wallet sign-in is the first thing to add for real users.
-- **Audit.** None. The demo contract account still holds a full-access key, so its code can be replaced. A production deployment would delete that key.
-- **Fees on cross-chain withdrawal** from the product plan are not implemented.
+# 2. The app
+npm run dev            # http://localhost:5173
 
-## Deploying your own
+# 3. Contracts: 92 unit tests and 9 sandbox tests with real cross-contract calls
+cd ../contracts
+for crate in preday preday-account test-usdc test-verifier; do (cd $crate && cargo near build non-reproducible-wasm); done
+cargo test --workspace
+
+# 4. Payment service: 48 tests, plus dry quotes against the real 1Click API
+cd ../service && npm install && npm test && npm run test:live
+```
+
+`npm run demo` ends with output like this:
+
+```
+6. Anna takes a $25 advance
+   owes $25.00 + $1.25 fee, wallet: $3045.00
+7. The next $1,000 payment arrives
+   advance paid back, limit level 1, wallet: $4018.75
+   pool: $501.00 assets, $0.25 reserve, $1.25 fees earned so far
+```
+
+To deploy your own copy:
 
 ```bash
 scripts/deploy-testnet.sh my-preday      # creates my-preday.testnet and two helper accounts
 echo "VITE_CONTRACT_ID=my-preday.testnet" > web/.env
 ```
 
-Service configuration is described in `service/.env.example`. Keys only ever come from the environment.
+Service configuration is described in [`service/.env.example`](service/.env.example). Keys only ever come from the environment.
+
+## Status and limits
+
+Started on 12 November 2026 for NEAR Hackathon. It is not connected to any earlier project.
+
+| Area | State |
+| --- | --- |
+| Pay accounts on global code, no keys | Working on testnet |
+| Income recording, limits, advances, repayment | Working on testnet |
+| Partial repayment, late, write-off, timelock | Covered by sandbox tests |
+| Pool, shares, reserve | Working on testnet |
+| Browser flow without a wallet | Working, verified by hand |
+| Real coins through NEAR Intents | Service built, request format verified with dry quotes. No real payment routed yet |
+| Identity check | Testnet stand-in that approves everyone |
+| Wallet sign-in | Not built. The demo signs with a throwaway key kept in the browser |
+| Audit | None |
+
+Stated plainly:
+
+- **Mainnet.** NEAR Intents has no testnet, so on testnet a "payment" is test dollars minted to the pay account. From there it takes the same path through the contract.
+- **Identity.** The contract stores only a hash and already enforces one person, one handle. A real provider plugs in as the `verifier` account.
+- **Upgradability.** The demo contract account still holds a full-access key, so its code can be replaced. A production deployment would delete that key.
+- **Cross-chain withdrawal fee** from the product plan is not implemented.
 
 ## License
 
-MIT
+[MIT](LICENSE)
