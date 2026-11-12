@@ -13,7 +13,10 @@ SIGN=(sign-with-legacy-keychain send)
 
 # The faucet rate-limits account creation. Set FUNDER to an account you hold a key for to pay for them instead.
 for account in "$PREDAY" "$USDC" "$VERIFIER"; do
-  if [ -n "${FUNDER:-}" ]; then
+  # Re-running after a partial failure picks up where it stopped.
+  if near account view-account-summary "$account" "${NET[@]}" now >/dev/null 2>&1; then
+    continue
+  elif [ -n "${FUNDER:-}" ]; then
     near account create-account fund-myself "$account" '3.5 NEAR' \
       autogenerate-new-keypair save-to-legacy-keychain sign-as "$FUNDER" "${NET[@]}" "${SIGN[@]}"
   else
@@ -48,7 +51,7 @@ near contract deploy "$VERIFIER" use-file "$OUT/test_verifier/test_verifier.wasm
 
 # Demo timings: 2 minutes of history instead of 30 days, late after 10 minutes, written off after 20,
 # level-ups after 15 seconds instead of 7 days, LP withdrawals 1 minute after the last deposit.
-PARAMS='{"min_payments":3,"min_history_ms":120000,"base_share_bps":3000,"ladder":["25000000","50000000","100000000","200000000","400000000"],"fee_bps":500,"min_fee":"1000000","late_after_ms":600000,"write_off_after_ms":1200000,"reserve_bps":2000,"max_utilization_bps":8000,"min_payment":"10000000","seasoning_ms":15000,"withdraw_delay_ms":60000}'
+PARAMS='{"min_payments":3,"min_history_ms":120000,"base_share_bps":3000,"ladder":["25000000","50000000","100000000","200000000","400000000"],"fee_bps":500,"min_fee":"1000000","late_after_ms":600000,"write_off_after_ms":1200000,"reserve_bps":2000,"max_utilization_bps":8000,"min_payment":"10000000","seasoning_ms":15000,"withdraw_delay_ms":60000,"max_verifications_per_day":1000,"newcomer_exposure_bps":5000}'
 near contract deploy "$PREDAY" use-file "$OUT/preday/preday.wasm" \
   with-init-call new json-args "{\"usdc\":\"$USDC\",\"verifier\":\"$VERIFIER\",\"account_code\":\"$ACCOUNT_CODE\",\"params\":$PARAMS,\"params_delay_ms\":60000}" \
   prepaid-gas '30 Tgas' attached-deposit '0 NEAR' "${NET[@]}" "${SIGN[@]}"
