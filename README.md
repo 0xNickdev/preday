@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="web/public/logo.svg" width="84" alt="Preday logo" />
+
 # Preday
 
 **Payday is whenever you need it.**
