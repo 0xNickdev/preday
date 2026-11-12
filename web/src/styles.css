@@ -1,14 +1,13 @@
 :root {
-  --paper: #f2f3ef;
+  --paper: #f7f7f5;
   --surface: #ffffff;
-  --ink: #0a0a0a;
-  --muted: #5c605a;
-  --line: #d5d8d0;
-  --amber: #ffb000;
+  --ink: #111111;
+  --muted: #6f6f6f;
+  --line: #e1e1dd;
   --paid: #14693f;
   --late: #b23a12;
-  --display: 'Funnel Display', system-ui, sans-serif;
-  --text: 'Funnel Sans', system-ui, sans-serif;
+  --display: Inter, system-ui, sans-serif;
+  --text: Inter, system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --gutter: clamp(16px, 4vw, 48px);
 }
@@ -135,10 +134,10 @@ input {
   min-height: 48px;
   padding: 0 22px;
   border: 1px solid var(--ink);
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--ink);
   color: var(--paper);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 16px;
   text-decoration: none;
   cursor: pointer;
@@ -154,10 +153,53 @@ input {
   cursor: not-allowed;
 }
 
-.btn.amber {
-  background: var(--amber);
-  border-color: var(--amber);
+/* The main action on a screen: an ink pill with the only colour in the product glowing under it. */
+.btn.glow {
+  position: relative;
+  isolation: isolate;
+  border-color: transparent;
+  background: none;
+}
+
+.btn.glow::before {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  left: 10%;
+  right: 10%;
+  bottom: -6px;
+  height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #ffcf5a, #7dffa8, #5ad7ff, #9b7bff, #ff6fd8, #ffb36b);
+  filter: blur(9px);
+  opacity: 0.85;
+  transition:
+    filter 0.3s,
+    opacity 0.3s,
+    bottom 0.3s;
+}
+
+.btn.glow::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--ink);
+}
+
+.btn.glow:hover::before {
+  bottom: -9px;
+  filter: blur(12px);
+  opacity: 1;
+}
+
+.panel.dark .btn.glow {
   color: var(--ink);
+}
+
+.panel.dark .btn.glow::after {
+  background: var(--paper);
 }
 
 .btn.ghost {
@@ -178,42 +220,101 @@ input {
 /* Landing */
 
 .hero {
-  padding: clamp(20px, 3vw, 40px) 0 clamp(40px, 6vw, 80px);
+  position: relative;
+  height: 100vh;
+  min-height: 660px;
+  overflow: hidden;
+}
+
+.dots {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-bar,
+.hero-copy,
+.legend {
+  position: relative;
+}
+
+.hero-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(18px, 2.6vw, 40px);
+  padding: 32px var(--gutter) 0;
+}
+
+.hero-bar .logo {
+  margin-right: 10px;
+}
+
+.hero-bar nav {
+  display: flex;
+  gap: inherit;
+}
+
+.hero-bar nav a {
+  font-size: 14px;
+  text-decoration: none;
+  color: #3a3a3a;
+}
+
+.hero-bar nav a:hover {
+  color: #000;
 }
 
 .hero-copy {
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-  gap: 28px 64px;
-  align-items: end;
-  margin-bottom: clamp(28px, 3.2vw, 44px);
+  width: min(92vw, 720px);
+  margin: clamp(56px, 11vh, 120px) auto 0;
+  text-align: center;
 }
 
 .hero h1 {
-  font: 600 clamp(46px, 6.6vw, 100px) / 0.94 var(--display);
-  letter-spacing: -0.045em;
-  text-wrap: balance;
+  font: 500 clamp(38px, 4.4vw, 72px) / 1.04 var(--display);
+  letter-spacing: -0.035em;
 }
 
-.hero-side p {
-  max-width: 44ch;
-  font-size: clamp(17px, 1.35vw, 19px);
+.hero h1 span {
+  display: block;
+  color: #9a9a9a;
+}
+
+.hero-copy p {
+  max-width: 380px;
+  margin: 20px auto clamp(30px, 3.4vw, 46px);
+  font-size: clamp(14px, 1.1vw, 16px);
+  line-height: 1.45;
   color: var(--muted);
 }
 
-.hero-side .actions {
+.legend {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(24px, 5vh, 52px);
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 22px;
+  justify-content: center;
+  gap: 8px clamp(22px, 4vw, 56px);
+  padding: 0 16px;
+  font-size: clamp(13px, 1.05vw, 15px);
+  color: #9a9a9a;
 }
 
-.board {
-  display: block;
-  width: 100%;
-  height: clamp(250px, 30vw, 400px);
-  border-radius: 14px;
-  background: var(--ink);
+.legend li {
+  transition: color 0.6s;
+}
+
+.legend li[aria-current] {
+  color: var(--ink);
+}
+
+.legend b {
+  font-weight: 500;
 }
 
 .band {
@@ -224,7 +325,7 @@ input {
 .band h2 {
   max-width: 18ch;
   margin-bottom: clamp(28px, 4vw, 52px);
-  font: 600 clamp(30px, 4.2vw, 56px) / 1 var(--display);
+  font: 500 clamp(30px, 4.2vw, 56px) / 1 var(--display);
   letter-spacing: -0.035em;
 }
 
@@ -249,7 +350,7 @@ input {
   content: counter(step);
   display: block;
   margin-bottom: 36px;
-  font: 600 40px/1 var(--display);
+  font: 500 40px/1 var(--display);
   letter-spacing: -0.03em;
 }
 
@@ -335,7 +436,7 @@ input {
 
 .figures dd {
   margin-top: 10px;
-  font: 600 clamp(26px, 3.2vw, 44px) / 1 var(--display);
+  font: 500 clamp(26px, 3.2vw, 44px) / 1 var(--display);
   letter-spacing: -0.03em;
 }
 
@@ -368,7 +469,7 @@ input {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--amber);
+  background: var(--ink);
 }
 
 .page {
@@ -378,7 +479,7 @@ input {
 .page h1 {
   max-width: 18ch;
   margin-bottom: clamp(20px, 3vw, 36px);
-  font: 600 clamp(30px, 4vw, 48px) / 1 var(--display);
+  font: 500 clamp(30px, 4vw, 48px) / 1 var(--display);
   letter-spacing: -0.035em;
 }
 
@@ -446,7 +547,7 @@ input {
 
 .amount {
   margin: 6px 0 18px;
-  font: 600 clamp(52px, 7vw, 88px) / 1 var(--display);
+  font: 500 clamp(52px, 7vw, 88px) / 1 var(--display);
   letter-spacing: -0.045em;
   font-variant-numeric: tabular-nums;
 }
@@ -487,7 +588,7 @@ input {
 }
 
 .meter i.on {
-  background: var(--amber);
+  background: var(--ink);
 }
 
 .meter i.due {
@@ -668,7 +769,15 @@ input {
     order: 1;
   }
 
-  .hero-copy,
+  .hero-bar {
+    justify-content: space-between;
+    padding-top: 22px;
+  }
+
+  .hero-bar nav {
+    display: none;
+  }
+
   .split,
   .cols {
     grid-template-columns: minmax(0, 1fr);
@@ -711,7 +820,9 @@ input {
     scroll-behavior: auto;
   }
 
-  .btn {
+  .btn,
+  .btn.glow::before,
+  .legend li {
     transition: none;
   }
 }

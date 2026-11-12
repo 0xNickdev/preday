@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { DotBoard } from '../components/DotBoard'
+import { PaycheckDots } from '../components/PaycheckDots'
 import { Logo } from '../components/Logo'
 import { PoolFigures } from '../components/PoolFigures'
 import { config } from '../lib/config'
@@ -40,41 +41,48 @@ function PoolBand() {
   )
 }
 
+/** One line per amount the hero cycles through, in the same order. */
+const LEGEND = [
+  ['Nov 28', 'your next payment is $1,180'],
+  ['Today', 'you take $100 of it'],
+  ['Nov 28', '$1,075 lands, the advance is paid back'],
+]
+
 export function Landing() {
+  const [amount, setAmount] = useState(0)
+
   return (
     <>
-      <header className="wrap bar">
-        <Logo />
-        <nav aria-label="Sections">
-          <a href="#how">How it works</a>
-          <a href="#terms">Terms</a>
-          <Link to="/pool">Pool</Link>
-        </nav>
-        <Link to="/app" className="btn small">
-          Open app
-        </Link>
-      </header>
-
       <main>
-        <section className="wrap hero">
+        <section className="hero">
+          <PaycheckDots onAmount={setAmount} />
+          <header className="hero-bar">
+            <Logo />
+            <nav aria-label="Sections">
+              <a href="#how">How it works</a>
+              <a href="#terms">Terms</a>
+              <Link to="/pool">Pool</Link>
+            </nav>
+            <Link to="/app" className="btn small">
+              Open app
+            </Link>
+          </header>
           <div className="hero-copy">
-            <h1>Payday is whenever you need it.</h1>
-            <div className="hero-side">
-              <p>
-                Preday is a pay link for people paid in crypto. After a few payments you can take part of the next one
-                early. It settles itself when that payment lands.
-              </p>
-              <div className="actions">
-                <Link to="/app" className="btn">
-                  Claim your pay link
-                </Link>
-                <a href="#terms" className="btn ghost">
-                  Read the terms
-                </a>
-              </div>
-            </div>
+            <h1>
+              <span>Payday is</span> whenever you need it.
+            </h1>
+            <p>A pay link for people paid in crypto. Take part of your next payment early. It settles itself.</p>
+            <Link to="/app" className="btn glow">
+              Claim your pay link
+            </Link>
           </div>
-          <DotBoard />
+          <ol className="legend">
+            {LEGEND.map(([when, what], index) => (
+              <li key={what} aria-current={index === amount || undefined}>
+                <b>{when}</b> {what}
+              </li>
+            ))}
+          </ol>
         </section>
 
         <section className="band" id="how">

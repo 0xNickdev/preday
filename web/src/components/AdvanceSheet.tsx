@@ -67,7 +67,7 @@ export function AdvanceSheet({ limit, params, onTaken, onClose }: Props) {
             <dd>Nothing is added</dd>
           </div>
         </dl>
-        <button className="btn amber wide" disabled={amount === null || action.busy}>
+        <button className="btn glow wide" disabled={amount === null || action.busy}>
           {action.busy ? 'Sending your money...' : `Confirm, get ${usd(amount ?? limit)}`}
         </button>
         <button type="button" className="btn ghost wide" onClick={() => dialog.current?.close()}>

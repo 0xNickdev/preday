@@ -57,7 +57,7 @@ export function AdvancePanel(props: Props) {
       </div>
       <div className="stack">
         <p>You can take up to {usd(limit.limit)} of it today.</p>
-        <button className="btn amber wide" onClick={() => setConfirming(true)}>
+        <button className="btn glow wide" onClick={() => setConfirming(true)}>
           Get {usd(limit.limit)} now
         </button>
       </div>
