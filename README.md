@@ -9,13 +9,13 @@
 A pay link for people paid in crypto, with a paycheck advance that pays itself back.
 
 [![CI](https://github.com/0xNickdev/preday/actions/workflows/ci.yml/badge.svg)](https://github.com/0xNickdev/preday/actions/workflows/ci.yml)
-[![Demo](https://github.com/0xNickdev/preday/actions/workflows/pages.yml/badge.svg)](https://0xnickdev.github.io/preday/)
+[![Demo](https://img.shields.io/badge/demo-preday.vercel.app-111111.svg)](https://preday.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![NEAR testnet](https://img.shields.io/badge/NEAR-testnet-111111.svg)](https://testnet.nearblocks.io/address/preday-v0.testnet)
 [![Contracts: Rust](https://img.shields.io/badge/contracts-Rust%20%2B%20near--sdk-111111.svg)](contracts)
 [![Tests](https://img.shields.io/badge/tests-101%20contract%20%2B%2048%20service-111111.svg)](#run-it)
 
-[Live demo](https://0xnickdev.github.io/preday/) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v0.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
+[Live demo](https://preday.vercel.app/) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v0.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
 
 </div>
 
@@ -52,7 +52,7 @@ Preday gets the guarantee that makes this product work, repayment at the source,
 
 ## Try it in two minutes
 
-Open the [demo](https://0xnickdev.github.io/preday/). It creates a throwaway NEAR testnet account in your browser, so there is no wallet to install and no real money involved.
+Open the [demo](https://preday.vercel.app/). It creates a throwaway NEAR testnet account in your browser, so there is no wallet to install and no real money involved.
 
 | Step | Do this | You see |
 | :-: | --- | --- |
