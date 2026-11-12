@@ -50,6 +50,8 @@ export function Requirements({ worker, limit, params, now, onChange }: Props) {
       {worker.banned ? (
         <p className="note late">
           An earlier advance was never paid back, so advances are closed for you. Your pay link keeps working.
+          {BigInt(worker.recovery) > 0n &&
+            ` Payments to it go toward the ${usd(worker.recovery, 'always')} still owed before they reach you.`}
         </p>
       ) : (
         <>

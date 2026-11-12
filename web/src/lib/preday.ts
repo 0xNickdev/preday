@@ -19,6 +19,8 @@ export type Params = {
   min_payment: string
   seasoning_ms: number
   withdraw_delay_ms: number
+  max_verifications_per_day: number
+  newcomer_exposure_bps: number
 }
 
 type Advance = { id: number; principal: string; fee: string; repaid: string; opened_at: number; touched_at: number; late: boolean }
@@ -31,6 +33,8 @@ export type Worker = {
   level: number
   payments_count: number
   activity_count: number
+  /** What is still owed from an advance that was written off. Future payments pay it down first. */
+  recovery: string
   first_payment_at: number | null
   total_received: string
   pending: string
@@ -45,7 +49,7 @@ export type Limit = {
 }
 
 export type Activity = {
-  kind: 'payment' | 'advance' | 'repayment' | 'closed' | 'late' | 'written_off'
+  kind: 'payment' | 'advance' | 'repayment' | 'closed' | 'late' | 'written_off' | 'recovered'
   amount: string
   fee: string
   at: number
@@ -62,6 +66,7 @@ export type Pool = {
   repaid: string
   fees: string
   written_off: string
+  recovered: string
   advances_count: number
 }
 
@@ -229,6 +234,8 @@ const PLAIN: Record<string, string> = {
   'amount is below the minimum advance': 'The smallest advance is $1.',
   'deposit is below the minimum': 'That amount is too small. Add at least $1.',
   'first deposit must exceed the locked minimum': 'The first deposit into the pool has to be more than $1.',
+  'newcomer limit reached': 'The pool has lent as much as it can to first-time advances right now. Try again after some are paid back.',
+  'daily verification limit reached': 'Identity checks are full for today. Try again tomorrow.',
   'shares are still locked': 'Money you added recently cannot be withdrawn yet. Try again a little later.',
 }
 

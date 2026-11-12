@@ -11,11 +11,11 @@ A pay link for people paid in crypto, with a paycheck advance that pays itself b
 [![CI](https://github.com/0xNickdev/preday/actions/workflows/ci.yml/badge.svg)](https://github.com/0xNickdev/preday/actions/workflows/ci.yml)
 [![Demo](https://img.shields.io/badge/demo-preday.vercel.app-111111.svg)](https://preday.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
-[![NEAR testnet](https://img.shields.io/badge/NEAR-testnet-111111.svg)](https://testnet.nearblocks.io/address/preday-v1.testnet)
+[![NEAR testnet](https://img.shields.io/badge/NEAR-testnet-111111.svg)](https://testnet.nearblocks.io/address/preday-v2.testnet)
 [![Contracts: Rust](https://img.shields.io/badge/contracts-Rust%20%2B%20near--sdk-111111.svg)](contracts)
-[![Tests](https://img.shields.io/badge/tests-143%20contract%20%2B%2048%20service-111111.svg)](#run-it)
+[![Tests](https://img.shields.io/badge/tests-166%20contract%20%2B%2048%20service-111111.svg)](#run-it)
 
-[Live demo](https://preday.vercel.app/) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v1.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
+[Live demo](https://preday.vercel.app/) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v2.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
 
 </div>
 
@@ -127,9 +127,10 @@ All of these live in contract state and are returned by `get_params`. Changing t
 | Repayment | From the next payment: principal, then fee, the rest to the worker |
 | Short payment | Covers what it can. What is owed never grows |
 | Late | 45 days without a payment: limit paused, back to the first step |
-| Written off | 90 days: the reserve absorbs the loss, then the pool. That identity gets no more advances |
+| Written off | 90 days: the reserve absorbs the loss, then the pool. That identity gets no more advances, and later payments to the link pay the loss back first |
 | Reserve | 20% of every fee |
-| Pool utilization | At most 80% of pool assets out in advances |
+| Pool utilization | At most 80% of pool assets out in advances, and at most 10% in first advances |
+| Identity checks | At most 50 new people a day |
 | Pool withdrawals | 7 days after the backer's last deposit. The first $1 ever deposited stays locked |
 | History kept | The last 20 events per pay link |
 
@@ -204,13 +205,13 @@ git clone https://github.com/0xNickdev/preday && cd preday
 
 # 1. The whole story on testnet, printed step by step (about 3 minutes)
 cd web && npm install
-echo "VITE_CONTRACT_ID=preday-v1.testnet" > .env
+echo "VITE_CONTRACT_ID=preday-v2.testnet" > .env
 npm run demo
 
 # 2. The app
 npm run dev            # http://localhost:5173
 
-# 3. Contracts: 132 unit tests and 11 sandbox tests with real cross-contract calls
+# 3. Contracts: 153 unit tests and 13 sandbox tests with real cross-contract calls (the sandbox suite takes about 8 minutes)
 cd ../contracts
 for crate in preday preday-account test-usdc test-verifier; do (cd $crate && cargo near build non-reproducible-wasm); done
 cargo test --workspace
@@ -251,9 +252,11 @@ Before submission the contracts went through an adversarial review whose only jo
 | Spam payments until the contract cannot pay for its storage | History is a fixed ring of 20 events, covered by the registration deposit |
 | Inflate the share price against the next depositor | The first dollar deposited is locked for good, and deposits have a minimum |
 | Add to the pool just before a repayment, take the fee, leave | Deposits are locked for the withdrawal delay |
-| A total loss leaves the pool unusable | The pool starts a new share epoch and keeps working |
+| A total loss leaves the pool unusable | A total or near-total loss starts a new share epoch and the pool keeps working |
+| A stolen or careless identity checker approves fake people who each default once | A daily cap on new verifications and a cap on how much of the pool first advances can hold |
+| Default once and keep using the link | The written-off amount stays on the link and later payments repay it first |
 
-What this does not cover: the identity check is trusted completely, a person can still default once up to their limit, and a near-total loss leaves old shares almost worthless rather than reset.
+What this does not cover: the identity check is still trusted for who counts as a person, with the caps above limiting how much a bad one can cost. A person who abandons their link for good can still default once, up to their limit.
 
 ## Status and limits
 

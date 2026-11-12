@@ -19,6 +19,8 @@ function describe({ kind, amount, fee }: Activity): { text: string; value?: stri
       return { text: 'Advance marked late, limit paused' }
     case 'written_off':
       return { text: 'Advance written off', value: usd(amount, 'always') }
+    case 'recovered':
+      return { text: 'Taken from that payment toward the written-off advance', value: `-${usd(amount, 'always')}` }
   }
 }
 

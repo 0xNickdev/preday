@@ -57,6 +57,10 @@ export function Pool() {
               <dd>{usd(pool.written_off)}</dd>
             </div>
             <div>
+              <dt>Recovered later</dt>
+              <dd>{usd(pool.recovered)}</dd>
+            </div>
+            <div>
               <dt>Advances</dt>
               <dd>{pool.advances_count}</dd>
             </div>

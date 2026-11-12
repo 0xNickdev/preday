@@ -184,7 +184,7 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
             ['45 days', 'The advance is marked late. Your limit is paused and your step returns to $25.'],
             [
               '90 days',
-              'The advance is written off. The pool absorbs the loss and that identity cannot take another advance.',
+              'The advance is written off. The pool absorbs the loss and that identity cannot take another advance. What was owed stays on the link: later payments to it pay that down first.',
             ],
           ]}
         />
@@ -214,6 +214,10 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
           <li>Each collected fee is split: 80% is added to the pool, 20% goes to a separate reserve.</li>
           <li>A written-off advance is taken from the reserve first. Only what the reserve cannot cover reduces the pool.</li>
           <li>At most 80% of the pool can be out in advances, so there is always money left to withdraw.</li>
+          <li>
+            At most 10% of the pool can be out in first advances, the ones taken on the $25 step. If identity checks
+            ever went wrong, this is what limits the damage.
+          </li>
           <li>Money added to the pool can be withdrawn 7 days after the backer's last deposit.</li>
           <li>The first dollar ever deposited stays locked, which keeps the share price honest for everyone after.</li>
           <li>
@@ -240,7 +244,7 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
             ['Your client', 'Pay your link. They need no account.'],
             ['A pool backer', 'Add dollars, withdraw their share.'],
             ['Anyone', 'Sweep a pay account, mark an overdue advance late, write off a stale one.'],
-            ['The identity checker', 'Confirm that a name belongs to one unique person. Nothing else.'],
+            ['The identity checker', 'Confirm that a name belongs to one unique person, up to a daily limit. Nothing else.'],
             ['The contract owner', 'Propose new rule values. They take effect only after a public delay.'],
           ]}
         />
@@ -286,7 +290,7 @@ const QUESTIONS: [string, ReactNode][] = [
   ],
   [
     'What if I never get paid again?',
-    'Then the advance is never repaid, and after 90 days it is written off against the pool. Nobody contacts you and nothing is added. The cost to you is that this identity cannot take another advance.',
+    'Then the advance is never repaid, and after 90 days it is written off against the pool. Nobody contacts you and nothing is added. This identity cannot take another advance, and if payments ever come to that link again, they pay down what was owed before reaching you.',
   ],
   [
     'Can I repay early from my wallet?',
