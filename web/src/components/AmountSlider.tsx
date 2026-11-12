@@ -1,8 +1,5 @@
 import { useEffect, useRef } from 'react'
 
-// Adapted from the Amount Slider by serafimcloud on 21st.dev: the same live grid of squares
-// and rolling digits, rebuilt on a native range input with no styling framework.
-
 const CELL = 6
 const GAP = 1
 const THUMB = 24

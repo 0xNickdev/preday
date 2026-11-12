@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-// Adapted from the Interactive Globe by dev.yadhakim on 21st.dev: a dotted sphere on a plain canvas.
-// Here every arc ends at one worker, and payments travel one way: toward them.
+// A dotted sphere on a plain canvas. Every arc ends at one worker, and payments travel one way: toward them.
 
 type Place = { name: string; lat: number; lng: number }
 
