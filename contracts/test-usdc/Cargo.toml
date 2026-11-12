@@ -1,0 +1,16 @@
+[package]
+name = "test-usdc"
+description = "Mintable NEP-141 token with 6 decimals for sandbox and testnet"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk.workspace = true
+near-contract-standards.workspace = true
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }
