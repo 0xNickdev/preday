@@ -1,5 +1,5 @@
 import { config } from './config'
-import { call, ensureGuest, view } from './near'
+import { call, callForEvents, ensureGuest, view } from './near'
 
 /** Amounts are strings of USDC minimal units. Times are milliseconds. */
 
@@ -78,6 +78,12 @@ export const getLimit = (handle: string) => read<Limit>('get_limit', { handle })
 export const getPool = () => read<Pool>('get_pool')
 export const getShares = (accountId: string) => read<string>('get_shares', { account_id: accountId })
 
+/** Dollars sitting in an account's own wallet, outside the contract. */
+export async function getBalance(accountId: string) {
+  const { usdc } = await getConfig()
+  return view<string>(usdc, 'ft_balance_of', { account_id: accountId })
+}
+
 /** The latest payments, newest first. `count` is the worker's payments_count. */
 export async function getRecentPayments(handle: string, count: number) {
   const from = Math.max(0, count - RECENT)
@@ -144,11 +150,18 @@ export function payAccount(handle: string) {
   return `${handle}.${config.contract}`
 }
 
+/** What the contract did with one payment, read from the events of the sweep transaction. */
+export type Receipt = { hash: string; amount: bigint; repaid: bigint; fee: bigint; forwarded: bigint }
+
 /** A demo payment: test dollars land on the pay account, then get forwarded as income. */
-export async function pay(handle: string, amount: bigint) {
+export async function pay(handle: string, amount: bigint): Promise<Receipt> {
   const account = payAccount(handle)
   await mint(account, amount)
-  await call({ contractId: account, method: 'sweep', tgas: 150 })
+  const { hash, events } = await callForEvents({ contractId: account, method: 'sweep', tgas: 150 })
+  const repay = events.find(({ event }) => event === 'repay')?.data
+  const repaid = BigInt((repay?.principal as string | undefined) ?? 0)
+  const fee = BigInt((repay?.fee as string | undefined) ?? 0)
+  return { hash, amount, repaid, fee, forwarded: amount - repaid - fee }
 }
 
 /** Mints test dollars to the guest and deposits them into the pool. */

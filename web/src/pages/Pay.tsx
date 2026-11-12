@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { Loading } from '../components/Loading'
 import { config } from '../lib/config'
 import { parseUsd, usd } from '../lib/money'
-import { getWorker, pay, payAccount } from '../lib/preday'
+import { guestId } from '../lib/near'
+import { getWorker, pay, type Receipt } from '../lib/preday'
 import { COINS, estimate, loadTokens } from '../lib/tokens'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
@@ -17,7 +18,7 @@ export function Pay() {
 
 function PayPage({ handle }: { handle: string }) {
   const worker = useLive(() => getWorker(handle))
-  const [paid, setPaid] = useState<bigint | null>(null)
+  const [paid, setPaid] = useState<Receipt | null>(null)
 
   if (worker.data === undefined) return <Loading failed={worker.failed} />
 
@@ -37,10 +38,31 @@ function PayPage({ handle }: { handle: string }) {
     return (
       <div className="narrow panel">
         <p className="cap">Paid. {handle} received</p>
-        <p className="amount">{usd(paid)}</p>
-        <div className="stack">
-          <a href={`${config.explorer}/address/${payAccount(handle)}`} target="_blank" rel="noreferrer">
-            See {handle}'s pay account on the testnet explorer
+        <p className="amount">{usd(paid.amount)}</p>
+        <dl className="rows num">
+          <div>
+            <dt>Recorded in {handle}'s payment history</dt>
+            <dd>{usd(paid.amount, 'always')}</dd>
+          </div>
+          {/* Only the owner of the link sees how the payment was split. A client has no business knowing about an advance. */}
+          {worker.data.owner === guestId() && (
+            <>
+              {paid.repaid + paid.fee > 0n && (
+                <div>
+                  <dt>Paid back your advance and its fee</dt>
+                  <dd>{usd(paid.repaid + paid.fee, 'always')}</dd>
+                </div>
+              )}
+              <div>
+                <dt>Sent to your wallet</dt>
+                <dd>{usd(paid.forwarded, 'always')}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+        <div className="stack receipt-actions">
+          <a href={`${config.explorer}/txns/${paid.hash}`} target="_blank" rel="noreferrer">
+            See this payment on the testnet explorer
           </a>
           <button className="btn ghost wide" onClick={() => setPaid(null)}>
             Pay again
@@ -53,7 +75,7 @@ function PayPage({ handle }: { handle: string }) {
   return <PayForm handle={handle} onPaid={setPaid} />
 }
 
-function PayForm({ handle, onPaid }: { handle: string; onPaid: (amount: bigint) => void }) {
+function PayForm({ handle, onPaid }: { handle: string; onPaid: (receipt: Receipt) => void }) {
   const [input, setInput] = useState('')
   const [coin, setCoin] = useState(COINS[0])
   const [tokens, setTokens] = useState<Awaited<ReturnType<typeof loadTokens>>>([])
@@ -74,8 +96,7 @@ function PayForm({ handle, onPaid }: { handle: string; onPaid: (amount: bigint) 
         event.preventDefault()
         if (!valid) return
         void action.run(async () => {
-          await pay(handle, amount)
-          onPaid(amount)
+          onPaid(await pay(handle, amount))
         })
       }}
     >

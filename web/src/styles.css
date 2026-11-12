@@ -1194,6 +1194,15 @@ input {
   letter-spacing: inherit;
 }
 
+.receipt-actions {
+  margin-top: 18px;
+}
+
+.balance {
+  font: 500 clamp(30px, 3vw, 40px) / 1 var(--display);
+  letter-spacing: -0.035em;
+}
+
 .meter {
   display: grid;
   grid-template-columns: repeat(30, 1fr);

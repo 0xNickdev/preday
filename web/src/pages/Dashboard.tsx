@@ -5,7 +5,7 @@ import { Claim } from '../components/Claim'
 import { Loading } from '../components/Loading'
 import { date, usd } from '../lib/money'
 import { guestId } from '../lib/near'
-import { claim, getHandle, getLimit, getParams, getRecentPayments, getWorker } from '../lib/preday'
+import { claim, getBalance, getHandle, getLimit, getParams, getRecentPayments, getWorker } from '../lib/preday'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
 
@@ -23,16 +23,19 @@ export function Dashboard() {
 async function loadHome(handle: string) {
   const [worker, limit, params] = await Promise.all([getWorker(handle), getLimit(handle), getParams()])
   if (!worker) throw new Error('unknown handle')
-  const payments = await getRecentPayments(handle, worker.payments_count)
+  const [payments, balance] = await Promise.all([
+    getRecentPayments(handle, worker.payments_count),
+    getBalance(worker.owner),
+  ])
   // The time of the read, so the remaining wait is counted from the same moment as the data.
-  return { worker, limit, params, payments, now: Date.now() }
+  return { worker, limit, params, payments, balance, now: Date.now() }
 }
 
 function Home({ handle }: { handle: string }) {
   const live = useLive(() => loadHome(handle))
   if (!live.data) return <Loading failed={live.failed} />
 
-  const { worker, limit, params, payments, now } = live.data
+  const { worker, limit, params, payments, balance, now } = live.data
   const level = Math.min(worker.level, params.ladder.length - 1)
 
   return (
@@ -57,6 +60,14 @@ function Home({ handle }: { handle: string }) {
       </div>
 
       <aside>
+        <section className="panel">
+          <h2>In your wallet</h2>
+          <p className="balance num">{usd(balance, 'always')}</p>
+          <p className="note">
+            Payments and advances arrive here, in <span className="mono">{worker.owner}</span>. Preday does not hold
+            them.
+          </p>
+        </section>
         <PayLink handle={handle} />
         <section className="panel">
           <h2>Your limit</h2>

@@ -75,6 +75,30 @@ export async function call({ contractId, method, args = {}, tgas = 100, deposit 
   }
 }
 
+export type ChainEvent = { event: string; data: Record<string, unknown> }
+
+/** Like `call`, but returns the transaction hash and every event the contracts logged along the way. */
+export async function callForEvents({ contractId, method, args = {}, tgas = 100, deposit = 0n }: Call) {
+  const account = await guest()
+  try {
+    const outcome = await account.callFunctionRaw({
+      contractId,
+      methodName: method,
+      args,
+      gas: teraToGas(tgas),
+      deposit,
+      waitUntil: 'FINAL',
+    })
+    const events = outcome.receipts_outcome
+      .flatMap((receipt) => receipt.outcome.logs)
+      .filter((log) => log.startsWith('EVENT_JSON:'))
+      .map((log) => JSON.parse(log.slice('EVENT_JSON:'.length)) as ChainEvent)
+    return { hash: outcome.transaction.hash as string, events }
+  } catch (error) {
+    throw new Error(panicMessage(error), { cause: error })
+  }
+}
+
 /** Contract panics arrive wrapped in RPC noise. Keep the sentence the contract wrote. */
 function panicMessage(error: unknown) {
   const text = error instanceof Error ? error.message : String(error)
