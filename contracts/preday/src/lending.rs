@@ -2,8 +2,14 @@ use near_sdk::json_types::U128;
 use near_sdk::serde_json::{self, json};
 use near_sdk::{env, is_promise_success, near, require, AccountId, Promise};
 
-use crate::worker::{Advance, Payment};
+use crate::activity::{Entry, Kind};
+use crate::params::USDC;
+use crate::pool::Position;
+use crate::worker::Advance;
 use crate::{events, Preday, PredayExt, CALLBACK_GAS};
+
+/// Smallest advance.
+const MIN_ADVANCE: u128 = USDC;
 
 /// `msg` accepted by `ft_on_transfer`.
 #[near(serializers = [json])]
@@ -46,63 +52,108 @@ impl Preday {
         if let Some(reason) = limit.reason {
             env::panic_str(&format!("not eligible: {}", reason.as_str()));
         }
-        require!(amount.0 > 0, "amount must be positive");
+        require!(
+            amount.0 >= MIN_ADVANCE,
+            "amount is below the minimum advance"
+        );
         require!(amount.0 <= limit.limit.0, "amount exceeds the limit");
 
-        let fee = self.params.fee(amount.0);
+        let advance = Advance::open(
+            self.next_advance_id,
+            amount.0,
+            limit.limit.0,
+            &self.params,
+            now,
+        );
+        self.next_advance_id += 1;
         self.pool.lend(amount.0, self.params.max_utilization_bps);
-        worker.advance = Some(Advance::open(amount.0, fee, now));
+        let (id, fee) = (advance.id, U128(advance.fee));
+        worker.advance = Some(advance);
 
         self.transfer_usdc(owner, amount.0).then(
             Self::ext(env::current_account_id())
                 .with_static_gas(CALLBACK_GAS)
-                .on_advance_sent(handle, amount, now),
+                .on_advance_sent(handle, id, amount, fee),
         )
     }
 
     #[private]
-    pub fn on_advance_sent(&mut self, handle: String, amount: U128, opened_at: u64) -> bool {
+    pub fn on_advance_sent(&mut self, handle: String, id: u64, amount: U128, fee: U128) -> bool {
+        let delivered = is_promise_success();
         let worker = self
             .workers
             .get_mut(&handle)
             .unwrap_or_else(|| env::abort());
-        if is_promise_success() {
-            let fee = worker.advance.as_ref().map_or(0, |advance| advance.fee);
-            events::emit(
-                "advance",
-                json!({ "handle": handle, "amount": amount, "fee": U128(fee) }),
-            );
-            return true;
-        }
-        match &worker.advance {
-            Some(advance) if advance.opened_at == opened_at && advance.repaid == 0 => {
+        if !delivered {
+            let untouched = worker
+                .advance
+                .as_ref()
+                .is_some_and(|open| open.id == id && open.repaid == 0);
+            if untouched {
                 worker.advance = None;
                 self.pool.undo_lend(amount.0);
+                return false;
             }
-            // Income already repaid part of it, so the advance stands and the
-            // undelivered principal waits for `claim`.
-            _ => worker.pending += amount.0,
+            // Income already went towards this advance, so it stands and
+            // the undelivered principal waits for `claim`.
+            worker.pending += amount.0;
         }
-        false
+        self.activity.push(
+            &handle,
+            &mut worker.activity_count,
+            Entry {
+                kind: Kind::Advance,
+                amount: amount.0,
+                fee: fee.0,
+                at: env::block_timestamp_ms(),
+            },
+        );
+        events::emit(
+            "advance",
+            json!({ "handle": handle, "id": id, "amount": amount, "fee": fee }),
+        );
+        delivered
     }
 
     /// Burns LP shares for their value in liquid pool funds.
     pub fn withdraw(&mut self, shares: U128) -> Promise {
         let account_id = env::predecessor_account_id();
-        let held = self.shares_of(&account_id);
-        require!(shares.0 <= held, "not enough shares");
+        let epoch = self.pool.epoch;
+        let key = (epoch, account_id.clone());
+        let position = self.positions.get(&key).cloned().unwrap_or_default();
+        require!(shares.0 <= position.shares, "not enough shares");
+        require!(
+            env::block_timestamp_ms() >= position.unlocks_at,
+            "shares are still locked"
+        );
         let amount = self.pool.withdraw(shares.0);
-        self.set_shares(&account_id, held - shares.0);
+        if position.shares == shares.0 {
+            self.positions.remove(&key);
+        } else {
+            self.positions.insert(
+                key,
+                Position {
+                    shares: position.shares - shares.0,
+                    ..position
+                },
+            );
+        }
 
         self.transfer_usdc(account_id.clone(), amount).then(
             Self::ext(env::current_account_id())
                 .with_static_gas(CALLBACK_GAS)
-                .on_withdraw_sent(account_id, shares, U128(amount)),
+                .on_withdraw_sent(account_id, epoch, shares, U128(amount)),
         )
     }
 
     #[private]
-    pub fn on_withdraw_sent(&mut self, account_id: AccountId, shares: U128, amount: U128) -> bool {
+    pub fn on_withdraw_sent(
+        &mut self,
+        account_id: AccountId,
+        epoch: u32,
+        shares: U128,
+        amount: U128,
+    ) -> bool {
         if is_promise_success() {
             events::emit(
                 "withdraw",
@@ -110,8 +161,17 @@ impl Preday {
             );
             return true;
         }
-        self.pool.undo_withdraw(shares.0, amount.0);
-        self.set_shares(&account_id, self.shares_of(&account_id) + shares.0);
+        if self.pool.epoch == epoch {
+            self.pool.undo_withdraw(shares.0, amount.0);
+            self.positions
+                .entry((epoch, account_id))
+                .or_default()
+                .shares += shares.0;
+        } else {
+            // The shares were wiped out by a total loss in the meantime;
+            // the undelivered funds back future losses instead.
+            self.pool.reserve += amount.0;
+        }
         false
     }
 
@@ -137,30 +197,42 @@ impl Preday {
         false
     }
 
-    /// Flags an advance with no repayment for `late_after_ms`. Callable by anyone.
+    /// Flags an advance left without a recorded repayment for its late
+    /// period. Callable by anyone.
     pub fn mark_late(&mut self, handle: String) {
         let now = env::block_timestamp_ms();
-        let late_after_ms = self.params.late_after_ms;
-        let worker = self.worker_mut(&handle);
+        let worker = self
+            .workers
+            .get_mut(&handle)
+            .unwrap_or_else(|| env::panic_str("unknown handle"));
         let advance = worker
             .advance
             .as_mut()
             .unwrap_or_else(|| env::panic_str("no open advance"));
         require!(!advance.late, "advance is already late");
         require!(
-            advance.idle_ms(now) >= late_after_ms,
+            advance.idle_ms(now) >= advance.late_after_ms,
             "advance is not late yet"
         );
         advance.late = true;
         worker.level = 0;
+        self.activity.push(
+            &handle,
+            &mut worker.activity_count,
+            Entry {
+                kind: Kind::Late,
+                amount: 0,
+                fee: 0,
+                at: now,
+            },
+        );
         events::emit("late", json!({ "handle": handle }));
     }
 
-    /// Closes an advance with no repayment for `write_off_after_ms`, books
-    /// the loss and bans the worker. Callable by anyone.
+    /// Closes an advance left without a recorded repayment for its
+    /// write-off period, books the loss and bans the worker. Callable by anyone.
     pub fn write_off(&mut self, handle: String) {
         let now = env::block_timestamp_ms();
-        let write_off_after_ms = self.params.write_off_after_ms;
         let worker = self
             .workers
             .get_mut(&handle)
@@ -170,13 +242,23 @@ impl Preday {
             .take()
             .unwrap_or_else(|| env::panic_str("no open advance"));
         require!(
-            advance.idle_ms(now) >= write_off_after_ms,
+            advance.idle_ms(now) >= advance.write_off_after_ms,
             "advance cannot be written off yet"
         );
         worker.banned = true;
         worker.level = 0;
         let principal = advance.principal_left();
         let from_reserve = self.pool.write_off(principal);
+        self.activity.push(
+            &handle,
+            &mut worker.activity_count,
+            Entry {
+                kind: Kind::WrittenOff,
+                amount: principal,
+                fee: 0,
+                at: now,
+            },
+        );
         events::emit(
             "write_off",
             json!({
@@ -195,32 +277,67 @@ impl Preday {
             "income must come from the handle's own account"
         );
         let now = env::block_timestamp_ms();
+        let recorded = amount >= self.params.min_payment.0;
         let worker = self
             .workers
             .get_mut(&handle)
             .unwrap_or_else(|| env::panic_str("unknown handle"));
-        self.payments.insert(
-            (handle.clone(), worker.payments_count),
-            Payment { amount, at: now },
-        );
-        worker.record_payment(amount, now);
+        worker.total_received += amount;
+        if recorded {
+            worker.record_payment(amount, now);
+            self.activity.push(
+                &handle,
+                &mut worker.activity_count,
+                Entry {
+                    kind: Kind::Payment,
+                    amount,
+                    fee: 0,
+                    at: now,
+                },
+            );
+        }
         events::emit(
             "income",
-            json!({ "handle": handle, "amount": U128(amount) }),
+            json!({ "handle": handle, "amount": U128(amount), "recorded": recorded }),
         );
 
         let mut payout = amount;
-        if let Some(advance) = worker.advance.as_mut() {
-            let (principal, fee) = advance.repay(amount, now);
-            let closed = advance.owed() == 0;
-            let on_time = !advance.late;
+        if let Some(mut advance) = worker.advance.take() {
+            let (principal, fee) = advance.repay(amount);
             self.pool.collect(principal, fee, self.params.reserve_bps);
             payout -= principal + fee;
+            // Only recorded payments count as activity, so dust can neither
+            // postpone lateness nor flood the log.
+            if recorded {
+                advance.touched_at = now;
+                self.activity.push(
+                    &handle,
+                    &mut worker.activity_count,
+                    Entry {
+                        kind: Kind::Repayment,
+                        amount: principal,
+                        fee,
+                        at: now,
+                    },
+                );
+            }
+            let closed = advance.owed() == 0;
             if closed {
-                worker.advance = None;
-                if on_time {
+                if advance.earns_level(self.params.seasoning_ms, now) {
                     worker.level = (worker.level + 1).min(self.params.top_level());
                 }
+                self.activity.push(
+                    &handle,
+                    &mut worker.activity_count,
+                    Entry {
+                        kind: Kind::Closed,
+                        amount: advance.principal,
+                        fee: advance.fee,
+                        at: now,
+                    },
+                );
+            } else {
+                worker.advance = Some(advance);
             }
             events::emit(
                 "repay",
@@ -240,7 +357,12 @@ impl Preday {
 
     fn receive_deposit(&mut self, account_id: AccountId, amount: u128) {
         let shares = self.pool.deposit(amount);
-        self.set_shares(&account_id, self.shares_of(&account_id) + shares);
+        let position = self
+            .positions
+            .entry((self.pool.epoch, account_id.clone()))
+            .or_default();
+        position.shares += shares;
+        position.unlocks_at = env::block_timestamp_ms() + self.params.withdraw_delay_ms;
         events::emit(
             "deposit",
             json!({ "account_id": account_id, "amount": U128(amount), "shares": U128(shares) }),
@@ -261,17 +383,5 @@ impl Preday {
             .get(owner)
             .cloned()
             .unwrap_or_else(|| env::panic_str("account has no handle"))
-    }
-
-    pub(crate) fn shares_of(&self, account_id: &AccountId) -> u128 {
-        self.shares.get(account_id).copied().unwrap_or(0)
-    }
-
-    fn set_shares(&mut self, account_id: &AccountId, shares: u128) {
-        if shares == 0 {
-            self.shares.remove(account_id);
-        } else {
-            self.shares.insert(account_id.clone(), shares);
-        }
     }
 }

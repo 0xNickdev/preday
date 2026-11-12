@@ -13,33 +13,38 @@ pub struct Worker {
     pub banned: bool,
     /// Index into the advance ladder.
     pub level: u8,
+    /// Recorded payments, i.e. income of at least `min_payment`.
     pub payments_count: u32,
     pub first_payment_at: Option<u64>,
-    /// Amounts of the most recent payments, oldest first.
+    /// Amounts of the most recent recorded payments, oldest first.
     pub recent: Vec<u128>,
+    /// All income, recorded or not.
     pub total_received: u128,
     /// Payouts that could not be delivered and wait for `claim`.
     pub pending: u128,
+    /// Activity entries ever written for this worker.
+    pub activity_count: u32,
     pub advance: Option<Advance>,
 }
 
 #[near(serializers = [borsh])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Advance {
+    pub id: u64,
     pub principal: u128,
     pub fee: u128,
     /// Total repaid so far, principal first.
     pub repaid: u128,
+    /// Limit the worker had when the advance was opened.
+    pub limit: u128,
     pub opened_at: u64,
-    /// Opened or last repaid, whichever is later.
+    /// Opened or last repaid by a recorded payment, whichever is later.
     pub touched_at: u64,
+    /// Terms in force when the advance was opened. Later param changes do
+    /// not apply to it.
+    pub late_after_ms: u64,
+    pub write_off_after_ms: u64,
     pub late: bool,
-}
-
-#[near(serializers = [borsh])]
-pub struct Payment {
-    pub amount: u128,
-    pub at: u64,
 }
 
 #[near(serializers = [json])]
@@ -86,6 +91,7 @@ impl Worker {
             recent: Vec::with_capacity(RECENT_PAYMENTS),
             total_received: 0,
             pending: 0,
+            activity_count: 0,
             advance: None,
         }
     }
@@ -93,7 +99,6 @@ impl Worker {
     pub fn record_payment(&mut self, amount: u128, now: u64) {
         self.payments_count += 1;
         self.first_payment_at.get_or_insert(now);
-        self.total_received += amount;
         if self.recent.len() == RECENT_PAYMENTS {
             self.recent.remove(0);
         }
@@ -139,13 +144,17 @@ impl Worker {
 }
 
 impl Advance {
-    pub fn open(principal: u128, fee: u128, now: u64) -> Self {
+    pub fn open(id: u64, principal: u128, limit: u128, params: &Params, now: u64) -> Self {
         Self {
+            id,
             principal,
-            fee,
+            fee: params.fee(principal),
             repaid: 0,
+            limit,
             opened_at: now,
             touched_at: now,
+            late_after_ms: params.late_after_ms,
+            write_off_after_ms: params.write_off_after_ms,
             late: false,
         }
     }
@@ -164,19 +173,28 @@ impl Advance {
 
     /// Applies up to `amount`, principal first, and returns the
     /// (principal, fee) parts actually taken.
-    pub fn repay(&mut self, amount: u128, now: u64) -> (u128, u128) {
+    pub fn repay(&mut self, amount: u128) -> (u128, u128) {
         let principal = amount.min(self.principal_left());
         let fee = (amount - principal).min(self.owed() - self.principal_left());
         self.repaid += principal + fee;
-        self.touched_at = now;
         (principal, fee)
+    }
+
+    /// Whether repaying this advance at `now` moves the worker up the
+    /// ladder: it must be on time, have been open for the seasoning period
+    /// and have used at least half of the limit available at the time.
+    pub fn earns_level(&self, seasoning_ms: u64, now: u64) -> bool {
+        !self.late
+            && now.saturating_sub(self.opened_at) >= seasoning_ms
+            && self.principal * 2 >= self.limit
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::tests::{defaults, DAY_MS, USDC};
+    use crate::params::tests::{defaults, DAY_MS};
+    use crate::params::USDC;
 
     fn worker(payments: &[u128]) -> Worker {
         let mut worker = Worker::new("anna.near".parse().unwrap());
@@ -187,7 +205,12 @@ mod tests {
         worker
     }
 
+    fn advance(principal: u128, limit: u128, now: u64) -> Advance {
+        Advance::open(1, principal, limit, &defaults(), now)
+    }
+
     const MATURE: u64 = 30 * DAY_MS;
+    const WEEK: u64 = 7 * DAY_MS;
 
     #[test]
     fn base_is_the_median_of_the_last_three() {
@@ -208,7 +231,6 @@ mod tests {
         worker.record_payment(400, 20);
         assert_eq!(worker.payments_count, 4);
         assert_eq!(worker.first_payment_at, Some(5));
-        assert_eq!(worker.total_received, 1000);
         assert_eq!(worker.recent, vec![200, 300, 400]);
     }
 
@@ -252,7 +274,7 @@ mod tests {
         assert_eq!(reason(&subject, MATURE - 1), Some(Ineligible::ShortHistory));
         assert_eq!(reason(&subject, MATURE), None);
 
-        subject.advance = Some(Advance::open(USDC, USDC, MATURE));
+        subject.advance = Some(advance(USDC, USDC, MATURE));
         assert_eq!(reason(&subject, MATURE), Some(Ineligible::AdvanceOpen));
 
         subject.banned = true;
@@ -284,36 +306,63 @@ mod tests {
     }
 
     #[test]
-    fn repay_takes_principal_before_fee() {
-        let mut advance = Advance::open(100, 5, 10);
-        assert_eq!(advance.repay(40, 20), (40, 0));
-        assert_eq!(advance.owed(), 65);
-        assert_eq!(advance.principal_left(), 60);
-        assert_eq!(advance.touched_at, 20);
+    fn open_fixes_fee_and_terms() {
+        let opened = advance(25 * USDC, 30 * USDC, 10);
+        assert_eq!(opened.fee, 1_250_000);
+        assert_eq!(opened.limit, 30 * USDC);
+        assert_eq!((opened.opened_at, opened.touched_at), (10, 10));
+        assert_eq!(opened.late_after_ms, 45 * DAY_MS);
+        assert_eq!(opened.write_off_after_ms, 90 * DAY_MS);
+        assert!(!opened.late);
+    }
 
-        assert_eq!(advance.repay(62, 30), (60, 2));
-        assert_eq!(advance.owed(), 3);
+    #[test]
+    fn repay_takes_principal_before_fee() {
+        let mut advance = advance(100 * USDC, 100 * USDC, 10);
+        assert_eq!(advance.fee, 5 * USDC);
+        assert_eq!(advance.repay(40 * USDC), (40 * USDC, 0));
+        assert_eq!(advance.owed(), 65 * USDC);
+        assert_eq!(advance.principal_left(), 60 * USDC);
+
+        assert_eq!(advance.repay(62 * USDC), (60 * USDC, 2 * USDC));
+        assert_eq!(advance.owed(), 3 * USDC);
         assert_eq!(advance.principal_left(), 0);
 
-        assert_eq!(advance.repay(50, 40), (0, 3));
+        assert_eq!(advance.repay(50 * USDC), (0, 3 * USDC));
         assert_eq!(advance.owed(), 0);
-        assert_eq!(advance.repaid, 105);
-        assert_eq!(advance.opened_at, 10);
+        assert_eq!(advance.repaid, 105 * USDC);
+        assert_eq!(advance.touched_at, 10);
     }
 
     #[test]
     fn repay_in_full_takes_only_what_is_owed() {
-        let mut advance = Advance::open(100, 5, 0);
-        assert_eq!(advance.repay(1000, 1), (100, 5));
+        let mut advance = advance(100 * USDC, 100 * USDC, 0);
+        assert_eq!(advance.repay(1000 * USDC), (100 * USDC, 5 * USDC));
         assert_eq!(advance.owed(), 0);
     }
 
     #[test]
     fn idle_time_counts_from_last_activity() {
-        let mut advance = Advance::open(100, 5, 1000);
+        let mut advance = advance(100 * USDC, 100 * USDC, 1000);
         assert_eq!(advance.idle_ms(4000), 3000);
-        advance.repay(10, 3500);
+        advance.touched_at = 3500;
         assert_eq!(advance.idle_ms(4000), 500);
         assert_eq!(advance.idle_ms(100), 0);
+    }
+
+    #[test]
+    fn level_is_earned_by_seasoned_advances_of_real_size() {
+        let full = advance(25 * USDC, 25 * USDC, MATURE);
+        assert!(full.earns_level(WEEK, MATURE + WEEK));
+        assert!(!full.earns_level(WEEK, MATURE + WEEK - 1));
+
+        let half = advance(12_500_000, 25 * USDC, MATURE);
+        assert!(half.earns_level(WEEK, MATURE + WEEK));
+        let under_half = advance(12_499_999, 25 * USDC, MATURE);
+        assert!(!under_half.earns_level(WEEK, MATURE + WEEK));
+
+        let mut late = advance(25 * USDC, 25 * USDC, MATURE);
+        late.late = true;
+        assert!(!late.earns_level(WEEK, MATURE + 60 * DAY_MS));
     }
 }

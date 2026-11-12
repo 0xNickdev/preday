@@ -7,8 +7,9 @@ use crate::{events, ext_usdc, Preday, PredayExt, CALLBACK_GAS};
 
 /// Exact deposit `register` requires. Covers USDC storage for the named
 /// account and the owner, the named account's own balance, and this
-/// contract's storage for the worker and its first payments.
-pub const REGISTER_DEPOSIT: NearToken = NearToken::from_millinear(20);
+/// contract's storage for the worker: its record, indexes and a full
+/// activity log come to at most 3021 bytes (0.03021 NEAR).
+pub const REGISTER_DEPOSIT: NearToken = NearToken::from_millinear(35);
 /// Balance the named account starts with. It only spends 1 yocto per sweep.
 const ACCOUNT_FUNDING: NearToken = NearToken::from_millinear(1);
 const USDC_STORAGE_DEPOSIT: NearToken = NearToken::from_micronear(1250);

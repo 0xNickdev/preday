@@ -1,6 +1,12 @@
 use near_sdk::{near, require};
 
-use crate::params::{bps, BPS};
+use crate::params::{bps, BPS, USDC};
+
+/// Smallest LP deposit.
+pub const MIN_DEPOSIT: u128 = USDC;
+/// Shares minted to no one by the first deposit of a share epoch. They keep
+/// the share supply from ever being small enough to manipulate its price.
+pub const LOCKED_SHARES: u128 = USDC;
 
 /// LP pool accounting. Tracked internally, never derived from the token
 /// balance: `assets` is the LP claim (liquid funds plus funds lent out),
@@ -17,6 +23,18 @@ pub struct Pool {
     pub fees: u128,
     pub written_off: u128,
     pub advances_count: u32,
+    /// Generation of the share supply. Shares of earlier epochs were wiped
+    /// out by a total loss and carry no claim.
+    pub epoch: u32,
+}
+
+/// An LP position within one share epoch.
+#[near(serializers = [borsh])]
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct Position {
+    pub shares: u128,
+    /// When the shares become withdrawable.
+    pub unlocks_at: u64,
 }
 
 impl Pool {
@@ -24,18 +42,23 @@ impl Pool {
         self.assets - self.lent
     }
 
-    /// Adds LP funds and returns the shares minted for them.
+    /// Adds LP funds and returns the shares credited to the depositor.
     pub fn deposit(&mut self, amount: u128) -> u128 {
-        let shares = if self.total_shares == 0 {
-            amount
+        require!(amount >= MIN_DEPOSIT, "deposit is below the minimum");
+        let (minted, credited) = if self.total_shares == 0 {
+            require!(
+                amount > LOCKED_SHARES,
+                "first deposit must exceed the locked minimum"
+            );
+            (amount, amount - LOCKED_SHARES)
         } else {
-            require!(self.assets > 0, "pool shares have no backing");
-            amount * self.total_shares / self.assets
+            let shares = amount * self.total_shares / self.assets;
+            require!(shares > 0, "deposit is too small");
+            (shares, shares)
         };
-        require!(shares > 0, "deposit is too small");
         self.assets += amount;
-        self.total_shares += shares;
-        shares
+        self.total_shares += minted;
+        credited
     }
 
     /// Burns shares and returns the liquid funds released for them.
@@ -86,13 +109,19 @@ impl Pool {
         self.fees += fee;
     }
 
-    /// Absorbs lost principal, reserve first. Returns the part the reserve covered.
+    /// Absorbs lost principal, reserve first, and returns the part the
+    /// reserve covered. A loss that leaves the shares with nothing behind
+    /// them retires them and opens a new share epoch.
     pub fn write_off(&mut self, principal: u128) -> u128 {
         let from_reserve = principal.min(self.reserve);
         self.reserve -= from_reserve;
         self.assets -= principal - from_reserve;
         self.lent -= principal;
         self.written_off += principal;
+        if self.assets == 0 && self.total_shares > 0 {
+            self.total_shares = 0;
+            self.epoch += 1;
+        }
         from_reserve
     }
 }
@@ -100,8 +129,8 @@ impl Pool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::params::tests::USDC;
 
+    /// Pool with `amount` of assets and as many shares, 1 USDC of them locked.
     fn funded(amount: u128) -> Pool {
         let mut pool = Pool::default();
         pool.deposit(amount);
@@ -109,11 +138,37 @@ mod tests {
     }
 
     #[test]
-    fn first_deposit_mints_one_to_one() {
+    fn first_deposit_locks_a_minimum_of_shares() {
         let mut pool = Pool::default();
-        assert_eq!(pool.deposit(1000 * USDC), 1000 * USDC);
+        assert_eq!(pool.deposit(1000 * USDC), 999 * USDC);
         assert_eq!(pool.assets, 1000 * USDC);
         assert_eq!(pool.total_shares, 1000 * USDC);
+    }
+
+    #[test]
+    #[should_panic(expected = "first deposit must exceed the locked minimum")]
+    fn first_deposit_must_leave_shares_for_the_depositor() {
+        Pool::default().deposit(USDC);
+    }
+
+    #[test]
+    #[should_panic(expected = "deposit is below the minimum")]
+    fn deposit_rejects_less_than_the_minimum() {
+        funded(1000 * USDC).deposit(USDC - 1);
+    }
+
+    #[test]
+    fn locked_shares_keep_the_price_from_being_inflated() {
+        let mut pool = Pool::default();
+        let attacker = pool.deposit(USDC + 1);
+        assert_eq!(attacker, 1);
+        assert_eq!(pool.withdraw(attacker), 1);
+        assert_eq!((pool.assets, pool.total_shares), (USDC, USDC));
+
+        pool.lend(800_000, 8000);
+        pool.collect(800_000, 5 * USDC, 0);
+        assert_eq!(pool.deposit(12 * USDC), 2 * USDC);
+        assert_eq!(pool.deposit(USDC), 166_666);
     }
 
     #[test]
@@ -134,9 +189,9 @@ mod tests {
         assert_eq!(pool.reserve, USDC);
         assert_eq!(pool.assets, 1004 * USDC);
         assert_eq!(pool.withdraw(500 * USDC), 502 * USDC);
-        assert_eq!(pool.withdraw(500 * USDC), 502 * USDC);
-        assert_eq!(pool.assets, 0);
-        assert_eq!(pool.total_shares, 0);
+        assert_eq!(pool.withdraw(499 * USDC), 500_996_000);
+        assert_eq!(pool.assets, 1_004_000);
+        assert_eq!(pool.total_shares, LOCKED_SHARES);
         assert_eq!(pool.reserve, USDC);
     }
 
@@ -160,16 +215,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid share amount")]
     fn withdraw_rejects_zero_shares() {
-        funded(USDC).withdraw(0);
-    }
-
-    #[test]
-    #[should_panic(expected = "deposit is too small")]
-    fn deposit_rejects_dust_that_mints_nothing() {
-        let mut pool = funded(10);
-        pool.lend(8, 8000);
-        pool.collect(8, 100, 0);
-        pool.deposit(1);
+        funded(2 * USDC).withdraw(0);
     }
 
     #[test]
@@ -205,7 +251,7 @@ mod tests {
     #[should_panic(expected = "not enough liquidity")]
     fn lend_rejects_more_than_liquid() {
         let mut pool = funded(100 * USDC);
-        pool.lend(101 * USDC, 10_000);
+        pool.lend(101 * USDC, 9000);
     }
 
     #[test]
@@ -235,6 +281,7 @@ mod tests {
         assert_eq!(pool.assets, 930 * USDC);
         assert_eq!(pool.lent, 0);
         assert_eq!(pool.written_off, 100 * USDC);
+        assert_eq!(pool.epoch, 0);
     }
 
     #[test]
@@ -246,5 +293,18 @@ mod tests {
         assert_eq!(pool.reserve, 50 * USDC);
         assert_eq!(pool.assets, 1000 * USDC);
         assert_eq!(pool.liquid(), 1000 * USDC);
+    }
+
+    #[test]
+    fn total_loss_opens_a_new_share_epoch() {
+        let mut pool = funded(100 * USDC);
+        pool.lend(80 * USDC, 8000);
+        pool.withdraw(20 * USDC);
+        assert_eq!(pool.write_off(80 * USDC), 0);
+        assert_eq!((pool.assets, pool.lent, pool.total_shares), (0, 0, 0));
+        assert_eq!(pool.epoch, 1);
+
+        assert_eq!(pool.deposit(500 * USDC), 499 * USDC);
+        assert_eq!((pool.assets, pool.total_shares), (500 * USDC, 500 * USDC));
     }
 }

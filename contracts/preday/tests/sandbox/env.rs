@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 use tokio::sync::OnceCell;
 
 pub const USDC: u128 = 1_000_000;
-pub const REGISTER_DEPOSIT: NearToken = NearToken::from_millinear(20);
+pub const REGISTER_DEPOSIT: NearToken = NearToken::from_millinear(35);
 pub const USDC_STORAGE_DEPOSIT: NearToken = NearToken::from_micronear(1250);
 pub const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 /// Gas a client should attach to `register` and `sweep`.
@@ -63,6 +63,9 @@ async fn wasms() -> Result<&'static Wasms> {
 pub const MIN_HISTORY_MS: u64 = 2 * 60 * 1000;
 pub const LATE_AFTER_MS: u64 = 5 * 60 * 1000;
 pub const WRITE_OFF_AFTER_MS: u64 = 15 * 60 * 1000;
+pub const SEASONING_MS: u64 = 60 * 1000;
+pub const WITHDRAW_DELAY_MS: u64 = 10 * 60 * 1000;
+pub const PARAMS_DELAY_MS: u64 = 5 * 60 * 1000;
 
 /// Params with the production ratios and durations short enough to
 /// fast-forward through, yet far longer than a test takes in real time.
@@ -78,6 +81,9 @@ pub fn fast_params() -> Value {
         "write_off_after_ms": WRITE_OFF_AFTER_MS,
         "reserve_bps": 2000,
         "max_utilization_bps": 8000,
+        "min_payment": "10000000",
+        "seasoning_ms": SEASONING_MS,
+        "withdraw_delay_ms": WITHDRAW_DELAY_MS,
     })
 }
 
@@ -93,7 +99,7 @@ pub struct Env {
 
 impl Env {
     pub async fn new() -> Result<Self> {
-        Self::with_params(fast_params(), 0).await
+        Self::with_params(fast_params(), PARAMS_DELAY_MS).await
     }
 
     pub async fn with_params(params: Value, params_delay_ms: u64) -> Result<Self> {
@@ -174,6 +180,18 @@ impl Env {
 
     pub async fn user(&self) -> Result<Account> {
         Ok(self.worker.dev_create_account().await?)
+    }
+
+    /// Creates `<name>.<root>`, for tests that need a specific id length.
+    pub async fn user_named(&self, name: &str) -> Result<Account> {
+        Ok(self
+            .worker
+            .root_account()?
+            .create_subaccount(name)
+            .initial_balance(NearToken::from_near(10))
+            .transact()
+            .await?
+            .into_result()?)
     }
 
     pub fn named(&self, handle: &str) -> AccountId {

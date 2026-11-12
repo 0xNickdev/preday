@@ -5,6 +5,7 @@
 //! income, repays any open advance and is forwarded to the worker's wallet.
 //! Enough income history unlocks small advances from an LP pool.
 
+mod activity;
 mod events;
 mod lending;
 mod params;
@@ -23,9 +24,11 @@ use near_sdk::{
     PanicOnDefault, Promise,
 };
 
+use activity::ActivityLog;
 pub use params::Params;
-use pool::Pool;
-use worker::{Payment, Worker};
+use params::MIN_PARAMS_DELAY_MS;
+use pool::{Pool, Position};
+use worker::Worker;
 
 const FT_TRANSFER_GAS: Gas = Gas::from_tgas(10);
 const CALLBACK_GAS: Gas = Gas::from_tgas(8);
@@ -42,8 +45,8 @@ pub trait Usdc {
 enum StorageKey {
     Workers,
     Handles,
-    Payments,
-    Shares,
+    Activity,
+    Positions,
     Persons,
 }
 
@@ -66,19 +69,21 @@ pub struct Preday {
     pending_params: Option<PendingParams>,
     params_delay_ms: u64,
     pool: Pool,
+    next_advance_id: u64,
     workers: LookupMap<String, Worker>,
     /// Owner wallet -> handle.
     handles: LookupMap<AccountId, String>,
-    /// (handle, index) -> payment.
-    payments: LookupMap<(String, u32), Payment>,
-    shares: LookupMap<AccountId, u128>,
+    activity: ActivityLog,
+    /// (share epoch, LP) -> position.
+    positions: LookupMap<(u32, AccountId), Position>,
     /// Person code -> handle. A code is bound to its first handle for good.
     persons: LookupMap<CryptoHash, String>,
 }
 
 #[near]
 impl Preday {
-    /// The caller becomes the owner, whose only power is proposing params.
+    /// The caller becomes the owner, whose only power is proposing params
+    /// within the hard-coded ceilings. The timelock itself cannot change.
     #[init]
     pub fn new(
         usdc: AccountId,
@@ -88,6 +93,10 @@ impl Preday {
         params_delay_ms: u64,
     ) -> Self {
         params.assert_valid();
+        require!(
+            params_delay_ms >= MIN_PARAMS_DELAY_MS,
+            "params_delay_ms cannot be shorter than 60000"
+        );
         Self {
             owner: env::predecessor_account_id(),
             usdc,
@@ -97,10 +106,11 @@ impl Preday {
             pending_params: None,
             params_delay_ms,
             pool: Pool::default(),
+            next_advance_id: 1,
             workers: LookupMap::new(StorageKey::Workers),
             handles: LookupMap::new(StorageKey::Handles),
-            payments: LookupMap::new(StorageKey::Payments),
-            shares: LookupMap::new(StorageKey::Shares),
+            activity: ActivityLog::new(StorageKey::Activity),
+            positions: LookupMap::new(StorageKey::Positions),
             persons: LookupMap::new(StorageKey::Persons),
         }
     }

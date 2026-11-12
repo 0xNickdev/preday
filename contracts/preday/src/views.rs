@@ -1,6 +1,7 @@
 use near_sdk::json_types::U128;
 use near_sdk::{env, near, AccountId};
 
+use crate::activity::{Entry, Kind};
 use crate::registry::REGISTER_DEPOSIT;
 use crate::worker::{Advance, Limit, Worker};
 use crate::{Params, PendingParams, Preday, PredayExt};
@@ -16,11 +17,13 @@ pub struct WorkerView {
     pub first_payment_at: Option<u64>,
     pub total_received: U128,
     pub pending: U128,
+    pub activity_count: u32,
     pub advance: Option<AdvanceView>,
 }
 
 #[near(serializers = [json])]
 pub struct AdvanceView {
+    pub id: u64,
     pub principal: U128,
     pub fee: U128,
     pub repaid: U128,
@@ -30,9 +33,18 @@ pub struct AdvanceView {
 }
 
 #[near(serializers = [json])]
-pub struct PaymentView {
+pub struct ActivityView {
+    pub kind: Kind,
     pub amount: U128,
+    pub fee: U128,
     pub at: u64,
+}
+
+#[near(serializers = [json])]
+pub struct LpView {
+    pub shares: U128,
+    /// When the shares become withdrawable.
+    pub unlocks_at: u64,
 }
 
 #[near(serializers = [json])]
@@ -61,12 +73,24 @@ pub struct ConfigView {
 impl From<&Advance> for AdvanceView {
     fn from(advance: &Advance) -> Self {
         Self {
+            id: advance.id,
             principal: U128(advance.principal),
             fee: U128(advance.fee),
             repaid: U128(advance.repaid),
             opened_at: advance.opened_at,
             touched_at: advance.touched_at,
             late: advance.late,
+        }
+    }
+}
+
+impl From<&Entry> for ActivityView {
+    fn from(entry: &Entry) -> Self {
+        Self {
+            kind: entry.kind,
+            amount: U128(entry.amount),
+            fee: U128(entry.fee),
+            at: entry.at,
         }
     }
 }
@@ -83,6 +107,7 @@ impl WorkerView {
             first_payment_at: worker.first_payment_at,
             total_received: U128(worker.total_received),
             pending: U128(worker.pending),
+            activity_count: worker.activity_count,
             advance: worker.advance.as_ref().map(Into::into),
         }
     }
@@ -106,18 +131,17 @@ impl Preday {
             .limit(&self.params, env::block_timestamp_ms())
     }
 
-    /// Payments `from..from + limit` in the order they were received.
-    pub fn get_payments(&self, handle: String, from: u32, limit: u32) -> Vec<PaymentView> {
+    /// Up to 20 activity entries starting at sequence `from`, oldest first.
+    /// Only the latest 20 entries are kept; older ones are skipped.
+    pub fn get_activity(&self, handle: String, from: u32, limit: u32) -> Vec<ActivityView> {
         let count = self
             .workers
             .get(&handle)
-            .map_or(0, |worker| worker.payments_count);
-        (from..from.saturating_add(limit).min(count))
-            .filter_map(|index| self.payments.get(&(handle.clone(), index)))
-            .map(|payment| PaymentView {
-                amount: U128(payment.amount),
-                at: payment.at,
-            })
+            .map_or(0, |worker| worker.activity_count);
+        self.activity
+            .page(&handle, count, from, limit)
+            .into_iter()
+            .map(Into::into)
             .collect()
     }
 
@@ -136,8 +160,21 @@ impl Preday {
         }
     }
 
+    /// Shares of the current share epoch.
     pub fn get_shares(&self, account_id: AccountId) -> U128 {
-        U128(self.shares_of(&account_id))
+        self.get_lp(account_id).shares
+    }
+
+    pub fn get_lp(&self, account_id: AccountId) -> LpView {
+        let position = self
+            .positions
+            .get(&(self.pool.epoch, account_id))
+            .cloned()
+            .unwrap_or_default();
+        LpView {
+            shares: U128(position.shares),
+            unlocks_at: position.unlocks_at,
+        }
     }
 
     pub fn get_params(&self) -> Params {
