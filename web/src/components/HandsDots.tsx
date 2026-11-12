@@ -101,7 +101,8 @@ export function HandsDots() {
     }
 
     function render(t: number) {
-      if (!tiles.length) return
+      // The first frame can land before the first layout, when there is nothing to sample yet.
+      if (!tiles.length || !cols) return
       const portrait = height > width
       // The right hand changes pose first, then the left. Both are back before the loop restarts.
       const mix = [mixAt(t, 6.2, 14.6), mixAt(t, 2.4, 10.4)]

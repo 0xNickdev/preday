@@ -11,6 +11,7 @@
     "demo": "node scripts/demo.mjs"
   },
   "dependencies": {
+    "motion": "^14.12.0",
     "near-api-js": "^7.5.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

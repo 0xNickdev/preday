@@ -1,5 +1,6 @@
 import { usd } from '../lib/money'
 import type { Pool } from '../lib/preday'
+import { CountUp } from './CountUp'
 
 const PRICE_UNIT = 10_000n
 
@@ -15,19 +16,27 @@ export function PoolFigures({ pool }: { pool: Pool }) {
     <dl className="figures num">
       <div>
         <dt>Pool size</dt>
-        <dd>{usd(pool.assets)}</dd>
+        <dd>
+          <CountUp value={usd(pool.assets)} />
+        </dd>
       </div>
       <div>
         <dt>Out in advances</dt>
-        <dd>{usd(pool.lent)}</dd>
+        <dd>
+          <CountUp value={usd(pool.lent)} />
+        </dd>
       </div>
       <div>
         <dt>Reserve</dt>
-        <dd>{usd(pool.reserve)}</dd>
+        <dd>
+          <CountUp value={usd(pool.reserve)} />
+        </dd>
       </div>
       <div>
         <dt>Share price</dt>
-        <dd>{sharePrice(pool)}</dd>
+        <dd>
+          <CountUp value={sharePrice(pool)} />
+        </dd>
       </div>
     </dl>
   )
