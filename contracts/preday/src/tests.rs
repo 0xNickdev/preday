@@ -57,15 +57,19 @@ fn in_callback(now_ms: u64, success: bool) {
     );
 }
 
-fn contract() -> Preday {
+fn contract_with(params: Params) -> Preday {
     at(OWNER, 0);
     Preday::new(
         id(TOKEN),
         id(VERIFIER),
         Base58CryptoHash::from([9; 32]),
-        defaults(),
+        params,
         DELAY_MS,
     )
+}
+
+fn contract() -> Preday {
+    contract_with(defaults())
 }
 
 fn register(contract: &mut Preday, owner: &str, handle: &str) {
@@ -76,7 +80,11 @@ fn register(contract: &mut Preday, owner: &str, handle: &str) {
 }
 
 fn verify(contract: &mut Preday, handle: &str, person: u8) {
-    at(VERIFIER, 0);
+    verify_at(contract, handle, person, 0);
+}
+
+fn verify_at(contract: &mut Preday, handle: &str, person: u8, now_ms: u64) {
+    at(VERIFIER, now_ms);
     contract.set_verified(handle.to_string(), Base58CryptoHash::from([person; 32]));
 }
 
@@ -171,6 +179,15 @@ fn pool(contract: &Preday) -> near_sdk::serde_json::Value {
     to_value(contract.get_pool()).unwrap()
 }
 
+/// Registers and verifies a worker with three paychecks at time zero.
+fn onboard(contract: &mut Preday, owner: &str, handle: &str, person: u8) {
+    register(contract, owner, handle);
+    verify(contract, handle, person);
+    for _ in 0..3 {
+        income(contract, handle, PAYCHECK, 0);
+    }
+}
+
 /// Anna: registered, verified, three paychecks at time zero. The pool holds
 /// 1000 USDC from LP, whose 999 USDC of shares unlocked long before `MATURE`.
 fn funded() -> Preday {
@@ -255,6 +272,7 @@ fn register_claims_a_handle() {
             "total_received": "0",
             "pending": "0",
             "activity_count": 0,
+            "recovery": "0",
             "advance": null,
         })
     );
@@ -648,12 +666,14 @@ fn advance_is_recorded_with_its_fee() {
         json!({
             "assets": "1000000000",
             "lent": "25000000",
+            "lent_to_newcomers": "25000000",
             "reserve": "0",
             "total_shares": "1000000000",
             "advanced": "25000000",
             "repaid": "0",
             "fees": "0",
             "written_off": "0",
+            "recovered": "0",
             "advances_count": 1,
         })
     );
@@ -718,6 +738,7 @@ fn failed_advance_payout_rolls_everything_back() {
     assert_eq!(anna.activity_count, 3);
     let pool = pool(&contract);
     assert_eq!(pool["lent"], "0");
+    assert_eq!(pool["lent_to_newcomers"], "0");
     assert_eq!(pool["advanced"], "0");
     assert_eq!(pool["advances_count"], 0);
     at(ANNA, MATURE);
@@ -837,12 +858,14 @@ fn income_repays_principal_first_then_fee() {
         json!({
             "assets": "1001000000",
             "lent": "0",
+            "lent_to_newcomers": "0",
             "reserve": "250000",
             "total_shares": "1000000000",
             "advanced": "25000000",
             "repaid": "25000000",
             "fees": "1250000",
             "written_off": "0",
+            "recovered": "0",
             "advances_count": 1,
         })
     );
@@ -1030,12 +1053,14 @@ fn write_off_takes_the_reserve_before_lp_assets() {
         json!({
             "assets": "981250000",
             "lent": "0",
+            "lent_to_newcomers": "0",
             "reserve": "0",
             "total_shares": "1000000000",
             "advanced": "55000000",
             "repaid": "35000000",
             "fees": "1250000",
             "written_off": "20000000",
+            "recovered": "0",
             "advances_count": 2,
         })
     );
@@ -1199,20 +1224,25 @@ fn a_new_deposit_locks_the_whole_position_again() {
     contract.withdraw(U128(USDC)).detach();
 }
 
-/// LP funds exactly one advance, takes the liquid rest out, and the
-/// advance is never repaid: the pool is wiped out.
-fn wiped_out() -> Preday {
-    let mut contract = contract();
-    register(&mut contract, ANNA, "anna");
-    verify(&mut contract, "anna", 1);
-    for _ in 0..3 {
-        income(&mut contract, "anna", PAYCHECK, 0);
-    }
-    deposit(&mut contract, LP, 31_250_000);
+/// One newcomer advance of 25 USDC against a 62.5 USDC pool whose LP then
+/// takes `withdrawn` of the liquid rest out.
+fn lone_advance(withdrawn: u128) -> Preday {
+    let mut contract = contract_with(Params {
+        newcomer_exposure_bps: 5000,
+        ..defaults()
+    });
+    onboard(&mut contract, ANNA, "anna", 1);
+    deposit(&mut contract, LP, 62_500_000);
     advance(&mut contract, ANNA, "anna", 25 * USDC, MATURE);
     at(LP, MATURE);
-    contract.withdraw(U128(6_250_000)).detach();
+    contract.withdraw(U128(withdrawn)).detach();
     contract
+}
+
+/// The LP leaves nothing but the advance in the pool and the advance is
+/// never repaid: the pool is wiped out.
+fn wiped_out() -> Preday {
+    lone_advance(37_500_000)
 }
 
 #[test]
@@ -1258,6 +1288,182 @@ fn failed_withdrawal_from_a_retired_epoch_goes_to_the_reserve() {
     assert_eq!(after["assets"], "0");
     assert_eq!(after["total_shares"], "0");
     assert_eq!(contract.get_shares(id(LP)), U128(0));
+}
+
+#[test]
+fn near_total_loss_retires_the_shares_too() {
+    let mut contract = lone_advance(37_490_000);
+    assert_eq!(pool(&contract)["assets"], "25010000");
+    expire(&mut contract, "anna", MATURE + 90 * DAY_MS);
+
+    let emptied = pool(&contract);
+    assert_eq!(emptied["assets"], "0");
+    assert_eq!(emptied["total_shares"], "0");
+    assert_eq!(emptied["reserve"], "10000");
+    assert_eq!(contract.get_shares(id(LP)), U128(0));
+
+    deposit_at(&mut contract, BORIS, 1000 * USDC, MATURE + 90 * DAY_MS);
+    assert_eq!(contract.get_shares(id(BORIS)), U128(999 * USDC));
+    assert_eq!(pool(&contract)["total_shares"], "1000000000");
+}
+
+#[test]
+fn written_off_debt_is_recovered_from_later_income() {
+    let mut contract = funded();
+    advance(&mut contract, ANNA, "anna", 25 * USDC, MATURE);
+    let lost_at = MATURE + 90 * DAY_MS;
+    expire(&mut contract, "anna", lost_at);
+    assert_eq!(worker(&contract, "anna").recovery, U128(26_250_000));
+    let lost = pool(&contract);
+    assert_eq!(lost["assets"], "975000000");
+    assert_eq!(lost["lent_to_newcomers"], "0");
+
+    income(&mut contract, "anna", 10 * USDC, lost_at + 1);
+    assert_eq!(worker(&contract, "anna").recovery, U128(16_250_000));
+    assert_eq!(pool(&contract)["assets"], "985000000");
+
+    income(&mut contract, "anna", 1, lost_at + 2);
+    assert_eq!(worker(&contract, "anna").recovery, U128(16_249_999));
+    assert_eq!(pool(&contract)["assets"], "985000001");
+
+    income(&mut contract, "anna", PAYCHECK, lost_at + 3);
+    let anna = worker(&contract, "anna");
+    assert_eq!(anna.recovery, U128(0));
+    assert!(anna.banned);
+    let healed = pool(&contract);
+    assert_eq!(healed["assets"], "1000000000");
+    assert_eq!(healed["reserve"], "1250000");
+    assert_eq!(healed["recovered"], "26250000");
+    assert_eq!(healed["written_off"], "25000000");
+
+    let entry = |kind: &str, amount, at| (kind.to_string(), amount, 0, at);
+    assert_eq!(
+        activity(&contract, "anna", 4, 20),
+        vec![
+            entry("written_off", 25 * USDC, lost_at),
+            entry("payment", 10 * USDC, lost_at + 1),
+            entry("recovered", 10 * USDC, lost_at + 1),
+            entry("recovered", 1, lost_at + 2),
+            entry("payment", PAYCHECK, lost_at + 3),
+            entry("recovered", 16_249_999, lost_at + 3),
+        ]
+    );
+
+    income(&mut contract, "anna", PAYCHECK, lost_at + 4);
+    assert_eq!(pool(&contract)["recovered"], "26250000");
+    assert_eq!(worker(&contract, "anna").activity_count, 11);
+    at(ANNA, lost_at + 4);
+    assert_eq!(
+        contract.get_limit("anna".to_string()).reason,
+        Some(Ineligible::Banned)
+    );
+}
+
+#[test]
+fn recovery_repays_lp_assets_before_the_reserve() {
+    let mut contract = funded();
+    cycle(&mut contract, 25 * USDC, MATURE);
+    let opened = MATURE + WEEK;
+    advance(&mut contract, ANNA, "anna", 30 * USDC, opened);
+    expire(&mut contract, "anna", opened + 90 * DAY_MS);
+    let lost = pool(&contract);
+    assert_eq!(lost["assets"], "971250000");
+    assert_eq!(lost["reserve"], "0");
+    assert_eq!(worker(&contract, "anna").recovery, U128(31_500_000));
+
+    income(&mut contract, "anna", 20 * USDC, opened + 91 * DAY_MS);
+    let partial = pool(&contract);
+    assert_eq!(partial["assets"], "991250000");
+    assert_eq!(partial["reserve"], "0");
+
+    income(&mut contract, "anna", PAYCHECK, opened + 92 * DAY_MS);
+    let healed = pool(&contract);
+    assert_eq!(healed["assets"], "1001000000");
+    assert_eq!(healed["reserve"], "1750000");
+    assert_eq!(healed["recovered"], "31500000");
+    assert_eq!(worker(&contract, "anna").recovery, U128(0));
+}
+
+#[test]
+fn recovery_for_a_retired_epoch_goes_to_the_reserve() {
+    let mut contract = wiped_out();
+    let lost_at = MATURE + 90 * DAY_MS;
+    expire(&mut contract, "anna", lost_at);
+    deposit_at(&mut contract, BORIS, 1000 * USDC, lost_at);
+
+    income(&mut contract, "anna", 10 * USDC, lost_at + 1);
+    income(&mut contract, "anna", PAYCHECK, lost_at + 2);
+    let after = pool(&contract);
+    assert_eq!(after["assets"], "1000000000");
+    assert_eq!(after["reserve"], "26250000");
+    assert_eq!(after["recovered"], "26250000");
+    assert_eq!(worker(&contract, "anna").recovery, U128(0));
+}
+
+#[test]
+#[should_panic(expected = "newcomer limit reached")]
+fn newcomer_exposure_is_capped() {
+    let mut contract = contract();
+    onboard(&mut contract, ANNA, "anna", 1);
+    onboard(&mut contract, BORIS, "boris", 2);
+    deposit(&mut contract, LP, 250 * USDC);
+    advance(&mut contract, ANNA, "anna", 25 * USDC, MATURE);
+    at(BORIS, MATURE);
+    contract.request_advance(U128(USDC)).detach();
+}
+
+#[test]
+fn newcomer_exposure_frees_up_and_spares_proven_workers() {
+    let mut contract = contract();
+    onboard(&mut contract, ANNA, "anna", 1);
+    onboard(&mut contract, BORIS, "boris", 2);
+    deposit(&mut contract, LP, 250 * USDC);
+    advance(&mut contract, ANNA, "anna", 25 * USDC, MATURE);
+    assert_eq!(pool(&contract)["lent_to_newcomers"], "25000000");
+
+    income(&mut contract, "anna", 10 * USDC, MATURE + DAY_MS);
+    assert_eq!(pool(&contract)["lent_to_newcomers"], "15000000");
+    advance(&mut contract, BORIS, "boris", 10 * USDC, MATURE + DAY_MS);
+    assert_eq!(pool(&contract)["lent_to_newcomers"], "25000000");
+
+    income(&mut contract, "anna", PAYCHECK, MATURE + WEEK);
+    assert_eq!(worker(&contract, "anna").level, 1);
+    assert_eq!(pool(&contract)["lent_to_newcomers"], "10000000");
+
+    advance(&mut contract, ANNA, "anna", 30 * USDC, MATURE + WEEK);
+    let after = pool(&contract);
+    assert_eq!(after["lent_to_newcomers"], "10000000");
+    assert_eq!(after["lent"], "40000000");
+}
+
+#[test]
+#[should_panic(expected = "daily verification limit reached")]
+fn verifications_are_limited_per_day() {
+    let mut contract = contract_with(Params {
+        max_verifications_per_day: 2,
+        ..defaults()
+    });
+    register(&mut contract, ANNA, "anna");
+    register(&mut contract, BORIS, "boris");
+    register(&mut contract, LP, "lena");
+    verify_at(&mut contract, "anna", 1, 3 * DAY_MS);
+    verify_at(&mut contract, "boris", 2, 4 * DAY_MS - 1);
+    verify_at(&mut contract, "lena", 3, 4 * DAY_MS - 1);
+}
+
+#[test]
+fn verification_limit_resets_on_the_next_day() {
+    let mut contract = contract_with(Params {
+        max_verifications_per_day: 2,
+        ..defaults()
+    });
+    register(&mut contract, ANNA, "anna");
+    register(&mut contract, BORIS, "boris");
+    register(&mut contract, LP, "lena");
+    verify_at(&mut contract, "anna", 1, 3 * DAY_MS);
+    verify_at(&mut contract, "boris", 2, 4 * DAY_MS - 1);
+    verify_at(&mut contract, "lena", 3, 4 * DAY_MS);
+    assert!(worker(&contract, "lena").verified);
 }
 
 #[test]
@@ -1383,6 +1589,8 @@ fn params_serialize_to_the_documented_shape() {
             "min_payment": "10000000",
             "seasoning_ms": 604_800_000u64,
             "withdraw_delay_ms": 604_800_000u64,
+            "max_verifications_per_day": 50,
+            "newcomer_exposure_bps": 1000,
         })
     );
 }

@@ -18,6 +18,8 @@ pub struct WorkerView {
     pub total_received: U128,
     pub pending: U128,
     pub activity_count: u32,
+    /// Written-off debt still collected from income.
+    pub recovery: U128,
     pub advance: Option<AdvanceView>,
 }
 
@@ -51,12 +53,14 @@ pub struct LpView {
 pub struct PoolView {
     pub assets: U128,
     pub lent: U128,
+    pub lent_to_newcomers: U128,
     pub reserve: U128,
     pub total_shares: U128,
     pub advanced: U128,
     pub repaid: U128,
     pub fees: U128,
     pub written_off: U128,
+    pub recovered: U128,
     pub advances_count: u32,
 }
 
@@ -108,6 +112,7 @@ impl WorkerView {
             total_received: U128(worker.total_received),
             pending: U128(worker.pending),
             activity_count: worker.activity_count,
+            recovery: U128(worker.recovery.as_ref().map_or(0, |recovery| recovery.owed)),
             advance: worker.advance.as_ref().map(Into::into),
         }
     }
@@ -150,12 +155,14 @@ impl Preday {
         PoolView {
             assets: U128(pool.assets),
             lent: U128(pool.lent),
+            lent_to_newcomers: U128(pool.lent_to_newcomers),
             reserve: U128(pool.reserve),
             total_shares: U128(pool.total_shares),
             advanced: U128(pool.advanced),
             repaid: U128(pool.repaid),
             fees: U128(pool.fees),
             written_off: U128(pool.written_off),
+            recovered: U128(pool.recovered),
             advances_count: pool.advances_count,
         }
     }

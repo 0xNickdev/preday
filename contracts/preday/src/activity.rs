@@ -19,6 +19,8 @@ pub enum Kind {
     Late,
     /// `amount` is the principal that was lost.
     WrittenOff,
+    /// Written-off debt taken out of one income.
+    Recovered,
 }
 
 #[near(serializers = [borsh])]

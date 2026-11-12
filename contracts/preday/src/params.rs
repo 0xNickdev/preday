@@ -19,6 +19,8 @@ const MAX_RESERVE_BPS: u32 = 5000;
 const MAX_UTILIZATION_BPS: u32 = 9000;
 const MAX_MIN_PAYMENT: u128 = 100 * USDC;
 const MAX_WITHDRAW_DELAY_MS: u64 = 30 * DAY_MS;
+const MAX_VERIFICATIONS_PER_DAY: u32 = 10_000;
+const MAX_NEWCOMER_EXPOSURE_BPS: u32 = 5000;
 
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +50,10 @@ pub struct Params {
     pub seasoning_ms: u64,
     /// How long LP shares stay locked after the holder's latest deposit.
     pub withdraw_delay_ms: u64,
+    /// Handles the verifier may verify per UTC day.
+    pub max_verifications_per_day: u32,
+    /// Highest share of pool assets that may be lent to level 0 workers.
+    pub newcomer_exposure_bps: u32,
 }
 
 impl Params {
@@ -96,6 +102,14 @@ impl Params {
             self.withdraw_delay_ms <= MAX_WITHDRAW_DELAY_MS,
             "withdraw_delay_ms cannot exceed 30 days"
         );
+        require!(
+            (1..=MAX_VERIFICATIONS_PER_DAY).contains(&self.max_verifications_per_day),
+            "max_verifications_per_day must be between 1 and 10000"
+        );
+        require!(
+            self.newcomer_exposure_bps <= MAX_NEWCOMER_EXPOSURE_BPS,
+            "newcomer_exposure_bps cannot exceed 5000"
+        );
     }
 
     pub fn top_level(&self) -> u8 {
@@ -139,6 +153,8 @@ pub mod tests {
             min_payment: U128(10 * USDC),
             seasoning_ms: 7 * DAY_MS,
             withdraw_delay_ms: 7 * DAY_MS,
+            max_verifications_per_day: 50,
+            newcomer_exposure_bps: 1000,
         }
     }
 
@@ -160,6 +176,8 @@ pub mod tests {
             max_utilization_bps: 9000,
             min_payment: U128(100 * USDC),
             withdraw_delay_ms: 30 * DAY_MS,
+            max_verifications_per_day: 10_000,
+            newcomer_exposure_bps: 5000,
             ..defaults()
         }
         .assert_valid();
@@ -258,6 +276,36 @@ pub mod tests {
     fn rejects_withdraw_delay_above_the_ceiling() {
         Params {
             withdraw_delay_ms: 30 * DAY_MS + 1,
+            ..defaults()
+        }
+        .assert_valid();
+    }
+
+    #[test]
+    #[should_panic(expected = "max_verifications_per_day must be between 1 and 10000")]
+    fn rejects_zero_verifications_per_day() {
+        Params {
+            max_verifications_per_day: 0,
+            ..defaults()
+        }
+        .assert_valid();
+    }
+
+    #[test]
+    #[should_panic(expected = "max_verifications_per_day must be between 1 and 10000")]
+    fn rejects_verifications_per_day_above_the_ceiling() {
+        Params {
+            max_verifications_per_day: 10_001,
+            ..defaults()
+        }
+        .assert_valid();
+    }
+
+    #[test]
+    #[should_panic(expected = "newcomer_exposure_bps cannot exceed 5000")]
+    fn rejects_newcomer_exposure_above_the_ceiling() {
+        Params {
+            newcomer_exposure_bps: 5001,
             ..defaults()
         }
         .assert_valid();

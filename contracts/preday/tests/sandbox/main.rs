@@ -250,12 +250,14 @@ async fn advance_is_repaid_from_income_and_grows_the_pool() -> Result<()> {
         json!({
             "assets": "1001000000",
             "lent": "0",
+            "lent_to_newcomers": "0",
             "reserve": "250000",
             "total_shares": "1000000000",
             "advanced": "25000000",
             "repaid": "25000000",
             "fees": "1250000",
             "written_off": "0",
+            "recovered": "0",
             "advances_count": 1,
         })
     );
@@ -357,6 +359,11 @@ async fn advance_requests_are_checked() -> Result<()> {
         &env.request_advance(&anna, 25 * USDC).await?,
         "utilization cap reached",
     );
+    env.lp_with_deposit(10 * USDC).await?;
+    assert_failed_with(
+        &env.request_advance(&anna, 25 * USDC).await?,
+        "newcomer limit reached",
+    );
     assert_failed_with(
         &env.request_advance(&anna, 25 * USDC + 1).await?,
         "amount exceeds the limit",
@@ -366,7 +373,7 @@ async fn advance_requests_are_checked() -> Result<()> {
         "amount is below the minimum advance",
     );
 
-    assert_all_succeeded(&env.request_advance(&anna, 24 * USDC).await?);
+    assert_all_succeeded(&env.request_advance(&anna, 20 * USDC).await?);
     assert_failed_with(
         &env.request_advance(&anna, USDC).await?,
         "not eligible: advance_open",
@@ -381,7 +388,8 @@ async fn advance_requests_are_checked() -> Result<()> {
         .await?;
     assert_failed_with(&direct, "only the verifier can verify");
     let pool = env.get_pool().await?;
-    assert_eq!(pool["lent"], "24000000");
+    assert_eq!(pool["lent"], "20000000");
+    assert_eq!(pool["lent_to_newcomers"], "20000000");
     assert_eq!(pool["advances_count"], 1);
     Ok(())
 }
@@ -486,12 +494,14 @@ async fn stale_advance_goes_late_and_is_written_off() -> Result<()> {
         json!({
             "assets": "982250000",
             "lent": "0",
+            "lent_to_newcomers": "0",
             "reserve": "0",
             "total_shares": "1000000000",
             "advanced": "55000000",
             "repaid": "36000000",
             "fees": "1250000",
             "written_off": "19000000",
+            "recovered": "0",
             "advances_count": 2,
         })
     );
@@ -501,9 +511,22 @@ async fn stale_advance_goes_late_and_is_written_off() -> Result<()> {
         "not eligible: banned",
     );
 
+    let worker = env.get_worker("anna").await?;
+    assert_eq!(worker["recovery"], "20500000");
     let before = env.balance(anna.id()).await?;
     env.pay("anna", 50 * USDC).await?.into_result()?;
-    assert_eq!(env.balance(anna.id()).await?, before + 50 * USDC);
+    assert_eq!(env.balance(anna.id()).await?, before + 29_500_000);
+    let worker = env.get_worker("anna").await?;
+    assert_eq!(worker["recovery"], "0");
+    assert_eq!(worker["banned"], true);
+    let pool = env.get_pool().await?;
+    assert_eq!(pool["assets"], "1001000000");
+    assert_eq!(pool["reserve"], "1750000");
+    assert_eq!(pool["recovered"], "20500000");
+    assert_eq!(
+        activity_kinds(&env, "anna").await?.last().unwrap(),
+        "recovered"
+    );
     Ok(())
 }
 
@@ -647,5 +670,73 @@ async fn register_deposit_covers_the_storage_of_a_worker() -> Result<()> {
         u128::from(used) * STORAGE_PRICE_PER_BYTE <= kept,
         "{used} bytes are not covered by the {kept} yoctoNEAR kept from the register deposit"
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn near_total_loss_starts_a_new_share_epoch() -> Result<()> {
+    let env = Env::new().await?;
+    let lp = env.lp_with_deposit(62_500_000).await?;
+    let anna = env.eligible_worker("anna", 100 * USDC).await?;
+    assert_all_succeeded(&env.request_advance(&anna, 25 * USDC).await?);
+
+    env.advance_time(WITHDRAW_DELAY_MS).await?;
+    let withdraw = env
+        .call(&lp, "withdraw", json!({ "shares": "37490000" }))
+        .await?;
+    assert_all_succeeded(&withdraw);
+    env.advance_time(WRITE_OFF_AFTER_MS).await?;
+    assert_all_succeeded(
+        &env.call(&lp, "write_off", json!({ "handle": "anna" }))
+            .await?,
+    );
+
+    let pool = env.get_pool().await?;
+    assert_eq!(pool["assets"], "0");
+    assert_eq!(pool["lent"], "0");
+    assert_eq!(pool["total_shares"], "0");
+    assert_eq!(pool["reserve"], "10000");
+    assert_eq!(
+        env.view("get_shares", json!({ "account_id": lp.id() }))
+            .await?,
+        "0"
+    );
+    let stale = env
+        .call(&lp, "withdraw", json!({ "shares": "24010000" }))
+        .await?;
+    assert_failed_with(&stale, "not enough shares");
+
+    let newcomer = env.lp_with_deposit(100 * USDC).await?;
+    assert_eq!(
+        env.view("get_shares", json!({ "account_id": newcomer.id() }))
+            .await?,
+        "99000000"
+    );
+
+    env.pay("anna", 100 * USDC).await?.into_result()?;
+    let pool = env.get_pool().await?;
+    assert_eq!(pool["assets"], "100000000");
+    assert_eq!(pool["reserve"], "26260000");
+    assert_eq!(pool["recovered"], "26250000");
+    assert_eq!(env.get_worker("anna").await?["recovery"], "0");
+    assert_eq!(env.balance(env.preday.id()).await?, 126_260_000);
+    Ok(())
+}
+
+#[tokio::test]
+async fn verifier_is_rate_limited() -> Result<()> {
+    let mut params = env::fast_params();
+    params["max_verifications_per_day"] = json!(1);
+    let env = Env::with_params(params, PARAMS_DELAY_MS).await?;
+    let anna = env.worker_with_handle("anna").await?;
+    let boris = env.worker_with_handle("boris").await?;
+
+    assert_all_succeeded(&env.verify(&anna, "anna").await?);
+    assert_failed_with(
+        &env.verify(&boris, "boris").await?,
+        "daily verification limit reached",
+    );
+    assert_eq!(env.get_worker("anna").await?["verified"], true);
+    assert_eq!(env.get_worker("boris").await?["verified"], false);
     Ok(())
 }

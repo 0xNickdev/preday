@@ -8,11 +8,13 @@ use crate::{events, ext_usdc, Preday, PredayExt, CALLBACK_GAS};
 /// Exact deposit `register` requires. Covers USDC storage for the named
 /// account and the owner, the named account's own balance, and this
 /// contract's storage for the worker: its record, indexes and a full
-/// activity log come to at most 3021 bytes (0.03021 NEAR).
+/// activity log come to at most 3027 bytes (0.03027 NEAR).
 pub const REGISTER_DEPOSIT: NearToken = NearToken::from_millinear(35);
 /// Balance the named account starts with. It only spends 1 yocto per sweep.
 const ACCOUNT_FUNDING: NearToken = NearToken::from_millinear(1);
 const USDC_STORAGE_DEPOSIT: NearToken = NearToken::from_micronear(1250);
+
+const DAY_MS: u64 = 24 * 60 * 60 * 1000;
 
 const ACCOUNT_INIT_GAS: Gas = Gas::from_tgas(5);
 const STORAGE_DEPOSIT_GAS: Gas = Gas::from_tgas(8);
@@ -105,9 +107,21 @@ impl Preday {
                 "person already has a handle"
             });
         }
+        let day = env::block_timestamp_ms() / DAY_MS;
+        let verified_today = if self.verifications.0 == day {
+            self.verifications.1
+        } else {
+            0
+        };
+        require!(
+            verified_today < self.params.max_verifications_per_day,
+            "daily verification limit reached"
+        );
         let worker = self.worker_mut(&handle);
         require!(worker.person.is_none(), "handle is already verified");
+
         worker.person = Some(person);
+        self.verifications = (day, verified_today + 1);
         self.persons.insert(person, handle.clone());
         events::emit("verified", json!({ "handle": handle }));
     }

@@ -2,6 +2,7 @@ use near_sdk::json_types::U128;
 use near_sdk::{near, AccountId, CryptoHash};
 
 use crate::params::{bps, Params};
+use crate::pool::{Origin, Recovery};
 
 const RECENT_PAYMENTS: usize = 3;
 
@@ -25,6 +26,8 @@ pub struct Worker {
     /// Activity entries ever written for this worker.
     pub activity_count: u32,
     pub advance: Option<Advance>,
+    /// Debt left by a written-off advance.
+    pub recovery: Option<Recovery>,
 }
 
 #[near(serializers = [borsh])]
@@ -45,6 +48,7 @@ pub struct Advance {
     pub late_after_ms: u64,
     pub write_off_after_ms: u64,
     pub late: bool,
+    pub origin: Origin,
 }
 
 #[near(serializers = [json])]
@@ -93,6 +97,7 @@ impl Worker {
             pending: 0,
             activity_count: 0,
             advance: None,
+            recovery: None,
         }
     }
 
@@ -144,7 +149,14 @@ impl Worker {
 }
 
 impl Advance {
-    pub fn open(id: u64, principal: u128, limit: u128, params: &Params, now: u64) -> Self {
+    pub fn open(
+        id: u64,
+        principal: u128,
+        limit: u128,
+        origin: Origin,
+        params: &Params,
+        now: u64,
+    ) -> Self {
         Self {
             id,
             principal,
@@ -156,6 +168,7 @@ impl Advance {
             late_after_ms: params.late_after_ms,
             write_off_after_ms: params.write_off_after_ms,
             late: false,
+            origin,
         }
     }
 
@@ -206,7 +219,17 @@ mod tests {
     }
 
     fn advance(principal: u128, limit: u128, now: u64) -> Advance {
-        Advance::open(1, principal, limit, &defaults(), now)
+        Advance::open(
+            1,
+            principal,
+            limit,
+            Origin {
+                epoch: 0,
+                newcomer: true,
+            },
+            &defaults(),
+            now,
+        )
     }
 
     const MATURE: u64 = 30 * DAY_MS;

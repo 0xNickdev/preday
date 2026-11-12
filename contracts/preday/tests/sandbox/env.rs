@@ -84,6 +84,8 @@ pub fn fast_params() -> Value {
         "min_payment": "10000000",
         "seasoning_ms": SEASONING_MS,
         "withdraw_delay_ms": WITHDRAW_DELAY_MS,
+        "max_verifications_per_day": 1000,
+        "newcomer_exposure_bps": 5000,
     })
 }
 

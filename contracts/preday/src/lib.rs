@@ -70,6 +70,8 @@ pub struct Preday {
     params_delay_ms: u64,
     pool: Pool,
     next_advance_id: u64,
+    /// UTC day of the latest verification and how many it has seen.
+    verifications: (u64, u32),
     workers: LookupMap<String, Worker>,
     /// Owner wallet -> handle.
     handles: LookupMap<AccountId, String>,
@@ -107,6 +109,7 @@ impl Preday {
             params_delay_ms,
             pool: Pool::default(),
             next_advance_id: 1,
+            verifications: (0, 0),
             workers: LookupMap::new(StorageKey::Workers),
             handles: LookupMap::new(StorageKey::Handles),
             activity: ActivityLog::new(StorageKey::Activity),

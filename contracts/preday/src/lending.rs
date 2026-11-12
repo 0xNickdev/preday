@@ -4,7 +4,7 @@ use near_sdk::{env, is_promise_success, near, require, AccountId, Promise};
 
 use crate::activity::{Entry, Kind};
 use crate::params::USDC;
-use crate::pool::Position;
+use crate::pool::{Position, Recovery};
 use crate::worker::Advance;
 use crate::{events, Preday, PredayExt, CALLBACK_GAS};
 
@@ -58,15 +58,16 @@ impl Preday {
         );
         require!(amount.0 <= limit.limit.0, "amount exceeds the limit");
 
+        let origin = self.pool.lend(amount.0, worker.level == 0, &self.params);
         let advance = Advance::open(
             self.next_advance_id,
             amount.0,
             limit.limit.0,
+            origin,
             &self.params,
             now,
         );
         self.next_advance_id += 1;
-        self.pool.lend(amount.0, self.params.max_utilization_bps);
         let (id, fee) = (advance.id, U128(advance.fee));
         worker.advance = Some(advance);
 
@@ -85,13 +86,11 @@ impl Preday {
             .get_mut(&handle)
             .unwrap_or_else(|| env::abort());
         if !delivered {
-            let untouched = worker
+            if let Some(open) = worker
                 .advance
-                .as_ref()
-                .is_some_and(|open| open.id == id && open.repaid == 0);
-            if untouched {
-                worker.advance = None;
-                self.pool.undo_lend(amount.0);
+                .take_if(|open| open.id == id && open.repaid == 0)
+            {
+                self.pool.undo_lend(amount.0, open.origin);
                 return false;
             }
             // Income already went towards this advance, so it stands and
@@ -161,16 +160,11 @@ impl Preday {
             );
             return true;
         }
-        if self.pool.epoch == epoch {
-            self.pool.undo_withdraw(shares.0, amount.0);
+        if self.pool.undo_withdraw(shares.0, amount.0, epoch) {
             self.positions
                 .entry((epoch, account_id))
                 .or_default()
                 .shares += shares.0;
-        } else {
-            // The shares were wiped out by a total loss in the meantime;
-            // the undelivered funds back future losses instead.
-            self.pool.reserve += amount.0;
         }
         false
     }
@@ -248,7 +242,12 @@ impl Preday {
         worker.banned = true;
         worker.level = 0;
         let principal = advance.principal_left();
-        let from_reserve = self.pool.write_off(principal);
+        let loss = self.pool.write_off(principal, advance.origin);
+        worker.recovery = Some(Recovery {
+            owed: advance.owed(),
+            to_assets: loss.from_assets,
+            epoch: advance.origin.epoch,
+        });
         self.activity.push(
             &handle,
             &mut worker.activity_count,
@@ -264,7 +263,7 @@ impl Preday {
             json!({
                 "handle": handle,
                 "principal": U128(principal),
-                "from_reserve": U128(from_reserve),
+                "from_reserve": U128(loss.from_reserve),
             }),
         );
     }
@@ -304,7 +303,8 @@ impl Preday {
         let mut payout = amount;
         if let Some(mut advance) = worker.advance.take() {
             let (principal, fee) = advance.repay(amount);
-            self.pool.collect(principal, fee, self.params.reserve_bps);
+            self.pool
+                .collect(principal, fee, self.params.reserve_bps, advance.origin);
             payout -= principal + fee;
             // Only recorded payments count as activity, so dust can neither
             // postpone lateness nor flood the log.
@@ -347,6 +347,27 @@ impl Preday {
                     "fee": U128(fee),
                     "closed": closed,
                 }),
+            );
+        }
+        if let Some(mut recovery) = worker.recovery.take() {
+            let taken = self.pool.recover(payout, &mut recovery);
+            payout -= taken;
+            if recovery.owed > 0 {
+                worker.recovery = Some(recovery);
+            }
+            self.activity.push(
+                &handle,
+                &mut worker.activity_count,
+                Entry {
+                    kind: Kind::Recovered,
+                    amount: taken,
+                    fee: 0,
+                    at: now,
+                },
+            );
+            events::emit(
+                "recovered",
+                json!({ "handle": handle, "amount": U128(taken) }),
             );
         }
         if payout > 0 {
