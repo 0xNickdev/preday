@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Shell } from './components/Shell'
 import { Dashboard } from './pages/Dashboard'
+import { Docs } from './pages/Docs'
 import { Landing } from './pages/Landing'
 import { Pay } from './pages/Pay'
 import { Pool } from './pages/Pool'
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')!).render(
         <Route element={<Shell />}>
           <Route path="/app" element={<Dashboard />} />
           <Route path="/pool" element={<Pool />} />
+          <Route path="/docs" element={<Docs />} />
           <Route path="/:handle" element={<Pay />} />
         </Route>
       </Routes>

@@ -15,7 +15,7 @@ A pay link for people paid in crypto, with a paycheck advance that pays itself b
 [![Contracts: Rust](https://img.shields.io/badge/contracts-Rust%20%2B%20near--sdk-111111.svg)](contracts)
 [![Tests](https://img.shields.io/badge/tests-101%20contract%20%2B%2048%20service-111111.svg)](#run-it)
 
-[Live demo](https://preday.vercel.app/) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v0.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
+[Live demo](https://preday.vercel.app/) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v0.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
 
 </div>
 

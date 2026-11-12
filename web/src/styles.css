@@ -1362,7 +1362,145 @@ input {
   background: rgb(10 10 10 / 0.5);
 }
 
+/* Docs */
+
+.docs {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 720px);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: start;
+}
+
+.docs-toc {
+  position: sticky;
+  top: 32px;
+  display: grid;
+  gap: 10px;
+  font-size: 15px;
+}
+
+.docs-toc a {
+  text-decoration: none;
+  color: var(--muted);
+}
+
+.docs-toc a:hover {
+  color: var(--ink);
+}
+
+.docs-lead {
+  margin: 16px 0 0;
+  font-size: 19px;
+  color: var(--muted);
+}
+
+.docs section {
+  padding-top: 56px;
+}
+
+.docs h2 {
+  margin-bottom: 16px;
+  font: 500 clamp(24px, 2.6vw, 32px) / 1.15 var(--display);
+  letter-spacing: -0.03em;
+}
+
+.docs section p,
+.docs section ul,
+.docs section ol {
+  margin-bottom: 14px;
+}
+
+.docs section ul,
+.docs section ol {
+  padding-left: 22px;
+}
+
+.docs section ul {
+  list-style: disc;
+}
+
+.docs section ol {
+  list-style: decimal;
+}
+
+.docs section li {
+  margin-bottom: 6px;
+}
+
+.docs .formula {
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
+.docs-table {
+  margin: 18px 0;
+  overflow-x: auto;
+}
+
+.docs-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+
+.docs-table th,
+.docs-table td {
+  padding: 12px 16px 12px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.docs-table thead th {
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.docs-table tbody th {
+  width: 42%;
+  font-weight: 500;
+}
+
+.docs-questions details {
+  border-top: 1px solid var(--line);
+}
+
+.docs-questions details:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.docs-questions summary {
+  padding: 16px 0;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.docs-questions details p {
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.docs > article > .note {
+  margin-top: 40px;
+}
+
 @media (max-width: 860px) {
+  .docs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .docs-toc {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--line);
+  }
+
   .split.even {
     grid-template-columns: minmax(0, 1fr);
   }

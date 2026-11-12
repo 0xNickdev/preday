@@ -82,6 +82,7 @@ export function Landing() {
                 <a href="#how">How it works</a>
                 <a href="#terms">Terms</a>
                 <Link to="/pool">Pool</Link>
+                <Link to="/docs">Docs</Link>
               </nav>
               <Link to="/app" className="btn small">
                 Open app
@@ -211,6 +212,7 @@ export function Landing() {
 
         <footer className="wrap foot">
           <span>Preday. Contracts run on NEAR.</span>
+          <Link to="/docs">Docs</Link>
           <a href="https://github.com/0xNickdev/preday">Source</a>
         </footer>
       </MotionConfig>

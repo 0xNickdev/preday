@@ -4,7 +4,7 @@ import { register } from '../lib/preday'
 import { useAction } from '../lib/useAction'
 
 // These would hide behind the app's own pages.
-const RESERVED = ['app', 'pool']
+const RESERVED = ['app', 'pool', 'docs']
 
 function problem(name: string) {
   // The name becomes the account <name>.<contract>, and NEAR account ids stop at 64 characters.

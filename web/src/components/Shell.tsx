@@ -14,6 +14,7 @@ export function Shell() {
         <nav aria-label="App">
           <NavLink to="/app">Dashboard</NavLink>
           <NavLink to="/pool">Pool</NavLink>
+          <NavLink to="/docs">Docs</NavLink>
         </nav>
         <span className="badge">Testnet demo</span>
         {guest && <span className="mono muted">{guest}</span>}
