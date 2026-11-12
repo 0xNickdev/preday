@@ -243,6 +243,7 @@ Started on 12 November 2026 for NEAR Hackathon. It is not connected to any earli
 | Partial repayment, late, write-off, timelock | Covered by sandbox tests |
 | Pool, shares, reserve | Working on testnet |
 | Browser flow without a wallet | Working, verified by hand |
+| Service sweep after a payment | Verified on testnet: the keeper swept a pay account and the contract settled an open advance |
 | Real coins through NEAR Intents | Service built, request format verified with dry quotes. No real payment routed yet |
 | Identity check | Testnet stand-in that approves everyone |
 | Wallet sign-in | Not built. The demo signs with a throwaway key kept in the browser |
