@@ -234,9 +234,7 @@ input {
   height: 100%;
 }
 
-.hero-bar,
-.hero-copy,
-.legend {
+.hero-bar {
   position: relative;
 }
 
@@ -245,7 +243,19 @@ input {
   justify-content: center;
   align-items: center;
   gap: clamp(18px, 2.6vw, 40px);
-  padding: 32px var(--gutter) 0;
+  padding: 36px var(--gutter) 0;
+  font-size: 13.5px;
+}
+
+.hero .btn {
+  min-height: 40px;
+  padding: 0 20px;
+  font-size: 13.5px;
+  transition: transform 0.25s;
+}
+
+.hero .btn:hover {
+  transform: translateY(-1px);
 }
 
 .hero-bar .logo {
@@ -258,7 +268,6 @@ input {
 }
 
 .hero-bar nav a {
-  font-size: 14px;
   text-decoration: none;
   color: #3a3a3a;
 }
@@ -268,13 +277,16 @@ input {
 }
 
 .hero-copy {
+  position: absolute;
+  left: 50%;
+  top: 24.5%;
   width: min(92vw, 720px);
-  margin: clamp(56px, 11vh, 120px) auto 0;
   text-align: center;
+  transform: translateX(-50%);
 }
 
 .hero h1 {
-  font: 500 clamp(38px, 4.4vw, 72px) / 1.04 var(--display);
+  font: 500 clamp(38px, 3.75vw, 68px) / 1.04 var(--display);
   letter-spacing: -0.035em;
 }
 
@@ -284,37 +296,33 @@ input {
 }
 
 .hero-copy p {
-  max-width: 380px;
-  margin: 20px auto clamp(30px, 3.4vw, 46px);
-  font-size: clamp(14px, 1.1vw, 16px);
-  line-height: 1.45;
+  max-width: 340px;
+  margin: 20px auto clamp(34px, 3.6vw, 52px);
+  font-size: clamp(13px, 1.02vw, 15.5px);
+  line-height: 1.4;
   color: var(--muted);
 }
 
-.legend {
+.coins {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: clamp(24px, 5vh, 52px);
+  bottom: clamp(28px, 6vh, 64px);
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px clamp(22px, 4vw, 56px);
+  gap: 14px clamp(26px, 4.6vw, 66px);
   padding: 0 16px;
-  font-size: clamp(13px, 1.05vw, 15px);
-  color: #9a9a9a;
-}
-
-.legend li {
-  transition: color 0.6s;
-}
-
-.legend li[aria-current] {
-  color: var(--ink);
-}
-
-.legend b {
   font-weight: 500;
+  font-size: clamp(14px, 1.18vw, 17px);
+  letter-spacing: -0.01em;
+  color: #8d8d8d;
+}
+
+.coins li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
 .band {
@@ -344,6 +352,11 @@ input {
 .steps li + li {
   padding-left: 24px;
   border-left: 1px solid var(--line);
+}
+
+.steps svg {
+  float: right;
+  color: var(--muted);
 }
 
 .steps li::before {
@@ -778,6 +791,15 @@ input {
     display: none;
   }
 
+  .hero-copy {
+    top: 20%;
+  }
+
+  .coins {
+    gap: 14px 24px;
+    font-size: 13px;
+  }
+
   .split,
   .cols {
     grid-template-columns: minmax(0, 1fr);
@@ -822,7 +844,7 @@ input {
 
   .btn,
   .btn.glow::before,
-  .legend li {
+  .hero .btn {
     transition: none;
   }
 }

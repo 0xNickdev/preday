@@ -1,17 +1,17 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PaycheckDots } from '../components/PaycheckDots'
+import { HandsDots } from '../components/HandsDots'
+import { CoinIcon, StepIcon, type Coin, type Step } from '../components/Icons'
 import { Logo } from '../components/Logo'
 import { PoolFigures } from '../components/PoolFigures'
 import { config } from '../lib/config'
 import { getPool } from '../lib/preday'
 import { useLive } from '../lib/useLive'
 
-const STEPS = [
-  ['Claim a pay link', 'Pick a name and send preday.app/anna to clients instead of a wallet address.'],
-  ['Get paid in any coin', 'Your client pays with what they hold, from any network. You receive dollars.'],
-  ['Build a history', 'Every payment is recorded. After three payments your advance limit opens.'],
-  ['Take part of it early', 'Get up to 30% of your next payment now. It is paid back from that payment.'],
+const STEPS: [Step, string, string][] = [
+  ['link', 'Claim a pay link', 'Pick a name and send preday.app/anna to clients instead of a wallet address.'],
+  ['coins', 'Get paid in any coin', 'Your client pays with what they hold, from any network. You receive dollars.'],
+  ['history', 'Build a history', 'Every payment is recorded. After three payments your advance limit opens.'],
+  ['early', 'Take part of it early', 'Get up to 30% of your next payment now. It is paid back from that payment.'],
 ]
 
 const TERMS = [
@@ -41,21 +41,14 @@ function PoolBand() {
   )
 }
 
-/** One line per amount the hero cycles through, in the same order. */
-const LEGEND = [
-  ['Nov 28', 'your next payment is $1,180'],
-  ['Today', 'you take $100 of it'],
-  ['Nov 28', '$1,075 lands, the advance is paid back'],
-]
+const COINS: Coin[] = ['USDT', 'USDC', 'ETH', 'SOL', 'BTC', 'NEAR']
 
 export function Landing() {
-  const [amount, setAmount] = useState(0)
-
   return (
     <>
       <main>
         <section className="hero">
-          <PaycheckDots onAmount={setAmount} />
+          <HandsDots />
           <header className="hero-bar">
             <Logo />
             <nav aria-label="Sections">
@@ -76,21 +69,23 @@ export function Landing() {
               Claim your pay link
             </Link>
           </div>
-          <ol className="legend">
-            {LEGEND.map(([when, what], index) => (
-              <li key={what} aria-current={index === amount || undefined}>
-                <b>{when}</b> {what}
+          <ul className="coins" aria-label="Coins a client can pay with">
+            {COINS.map((coin) => (
+              <li key={coin}>
+                <CoinIcon coin={coin} />
+                {coin}
               </li>
             ))}
-          </ol>
+          </ul>
         </section>
 
         <section className="band" id="how">
           <div className="wrap">
             <h2>From first invoice to early payday</h2>
             <ol className="steps">
-              {STEPS.map(([title, text]) => (
+              {STEPS.map(([step, title, text]) => (
                 <li key={title}>
+                  <StepIcon step={step} />
                   <h3>{title}</h3>
                   <p>{text}</p>
                 </li>
