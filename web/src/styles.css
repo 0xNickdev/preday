@@ -1194,6 +1194,12 @@ input {
   letter-spacing: inherit;
 }
 
+.activity small {
+  display: block;
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .balance ~ .btn,
 .balance ~ form {
   margin-top: 16px;

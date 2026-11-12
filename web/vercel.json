@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "build": { "env": { "VITE_CONTRACT_ID": "preday-v0.testnet" } },
+  "build": { "env": { "VITE_CONTRACT_ID": "preday-v1.testnet" } },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

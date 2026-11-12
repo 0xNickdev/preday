@@ -19,6 +19,11 @@ export function date(ms: number) {
   return new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+/** Date and time of day, for lists where several things happen on the same day. */
+export function dateTime(ms: number) {
+  return new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 export function duration(ms: number) {
   const minutes = Math.ceil(ms / 60_000)
   if (minutes < 60) return `${minutes} min`

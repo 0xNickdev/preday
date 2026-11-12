@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Loading } from '../components/Loading'
 import { PoolFigures } from '../components/PoolFigures'
-import { parseUsd, usd } from '../lib/money'
+import { dateTime, duration, parseUsd, usd } from '../lib/money'
 import { guestId } from '../lib/near'
-import { addToPool, getParams, getPool, getShares, withdraw } from '../lib/preday'
+import { addToPool, getParams, getLp, getPool, withdraw } from '../lib/preday'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
 
@@ -11,8 +11,9 @@ const MIN = 1_000_000n
 
 async function loadPool() {
   const guest = guestId()
-  const [pool, params, shares] = await Promise.all([getPool(), getParams(), guest ? getShares(guest) : '0'])
-  return { pool, params, shares }
+  const [pool, params, lp] = await Promise.all([getPool(), getParams(), guest ? getLp(guest) : null])
+  // The time of the read, so the lock is judged at the same moment as the data.
+  return { pool, params, shares: lp?.shares ?? '0', unlocksAt: lp?.unlocks_at ?? 0, now: Date.now() }
 }
 
 export function Pool() {
@@ -23,7 +24,8 @@ export function Pool() {
 
   if (!live.data) return <Loading failed={live.failed} />
 
-  const { pool, params, shares } = live.data
+  const { pool, params, shares, unlocksAt, now } = live.data
+  const locked = unlocksAt > now
   const amount = parseUsd(input)
   const valid = amount !== null && amount >= MIN
   const held = BigInt(shares)
@@ -109,9 +111,10 @@ export function Pool() {
           {held > 0n && (
             <section className="panel stack">
               <h2>Your share: {usd(value, 'always')}</h2>
+              <p className="muted">The first dollar ever added to the pool stays locked in it, so the share price cannot be pushed around.</p>
               <button
                 className="btn ghost wide"
-                disabled={take.busy}
+                disabled={take.busy || locked}
                 onClick={() =>
                   take.run(async () => {
                     await withdraw(shares)
@@ -119,7 +122,7 @@ export function Pool() {
                   })
                 }
               >
-                {take.busy ? 'Withdrawing...' : 'Withdraw all'}
+                {take.busy ? 'Withdrawing...' : locked ? `Withdraw from ${dateTime(unlocksAt)}` : 'Withdraw all'}
               </button>
               {take.error && (
                 <p className="note late" role="alert">
@@ -127,8 +130,9 @@ export function Pool() {
                 </p>
               )}
               <p className="note">
-                A withdrawal can only use money that is in the pool right now. If most of it is out in advances, it has
-                to wait until they are paid back.
+                Money you add stays in for {duration(params.withdraw_delay_ms)} before it can be withdrawn. A
+                withdrawal can only use money that is in the pool right now, so if most of it is out in advances it
+                waits until they are paid back.
               </p>
             </section>
           )}

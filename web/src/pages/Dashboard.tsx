@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ActivityList } from '../components/ActivityList'
 import { AdvancePanel } from '../components/AdvancePanel'
 import { Claim } from '../components/Claim'
 import { Loading } from '../components/Loading'
 import { SendMoney } from '../components/SendMoney'
-import { date, usd } from '../lib/money'
+import { usd } from '../lib/money'
 import { guestId } from '../lib/near'
-import { claim, getBalance, getHandle, getLimit, getParams, getRecentPayments, getWorker } from '../lib/preday'
+import { claim, getActivity, getBalance, getHandle, getLimit, getParams, getWorker } from '../lib/preday'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
 
@@ -24,19 +25,19 @@ export function Dashboard() {
 async function loadHome(handle: string) {
   const [worker, limit, params] = await Promise.all([getWorker(handle), getLimit(handle), getParams()])
   if (!worker) throw new Error('unknown handle')
-  const [payments, balance] = await Promise.all([
-    getRecentPayments(handle, worker.payments_count),
+  const [activity, balance] = await Promise.all([
+    getActivity(handle, worker.activity_count),
     getBalance(worker.owner),
   ])
   // The time of the read, so the remaining wait is counted from the same moment as the data.
-  return { worker, limit, params, payments, balance, now: Date.now() }
+  return { worker, limit, params, activity, balance, now: Date.now() }
 }
 
 function Home({ handle }: { handle: string }) {
   const live = useLive(() => loadHome(handle))
   if (!live.data) return <Loading failed={live.failed} />
 
-  const { worker, limit, params, payments, balance, now } = live.data
+  const { worker, limit, params, activity, balance, now } = live.data
   const level = Math.min(worker.level, params.ladder.length - 1)
 
   return (
@@ -44,19 +45,8 @@ function Home({ handle }: { handle: string }) {
       <div>
         <AdvancePanel worker={worker} limit={limit} params={params} now={now} onChange={live.refresh} />
         <section className="panel">
-          <h2>Payments</h2>
-          {payments.length === 0 ? (
-            <p className="muted">No payments yet. Send your link to a client.</p>
-          ) : (
-            <ul className="rows num">
-              {payments.map((payment, index) => (
-                <li key={worker.payments_count - index}>
-                  <span>{date(payment.at)}</span>
-                  <span className="in">+{usd(payment.amount, 'always')}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <h2>Activity</h2>
+          <ActivityList activity={activity} count={worker.activity_count} />
         </section>
       </div>
 

@@ -66,8 +66,9 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
           <li>The code is published once for everyone, so an account costs 0.001 NEAR.</li>
         </ul>
         <p>
-          One name per wallet, and each name is unique. Claiming costs a 0.02 NEAR deposit, which covers the pay
-          account, its registration with the dollar token, and storage for your first payments.
+          One name per wallet, and each name is unique. Claiming costs a 0.035 NEAR deposit, which covers the pay
+          account, its registration with the dollar token, and storage for your history. The contract keeps the last
+          20 events for each link.
         </p>
       </>
     ),
@@ -101,7 +102,7 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
         <Table
           head={['Requirement', 'Why']}
           rows={[
-            ['Three payments to your link', 'A limit needs something to be based on.'],
+            ['Three payments of $10 or more', 'A limit needs something to be based on. Smaller payments still reach you, they just do not count.'],
             ['30 days since your first payment', 'A history cannot be manufactured in an evening.'],
             ['One identity check', 'One person gets one account. The contract stores only a hash, never your documents.'],
             ['No advance open', 'One at a time, so what you owe is always a single number.'],
@@ -122,8 +123,9 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
         </p>
         <p className="formula">limit = min(30% x median of last 3 payments, current step)</p>
         <p>
-          Steps are $25, $50, $100, $200 and $400. Everyone starts at $25. Each advance that is paid back on time
-          moves you one step up. An advance that goes late sends you back to $25.
+          Steps are $25, $50, $100, $200 and $400. Everyone starts at $25. An advance that is paid back on time moves
+          you one step up, as long as it was open for at least 7 days and was at least half of what you could have
+          taken. Tiny advances repaid the same day do not count. An advance that goes late sends you back to $25.
         </p>
         <Table
           head={['Worked example', '']}
@@ -187,8 +189,9 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
           ]}
         />
         <p>
-          The clock counts from the last activity on the advance: the day you took it, or the last payment that repaid
-          part of it. A late advance can still be repaid by any payment that arrives before day 90, which closes it and
+          The clock counts from the last activity on the advance: the day you took it, or the last payment of $10 or
+          more that repaid part of it. The deadlines are fixed when you take the advance and later rule changes do
+          not touch it. A late advance can still be repaid by any payment that arrives before day 90, which closes it and
           lets you start again from the first step. Your pay link keeps working in every case.
         </p>
         <p>
@@ -211,6 +214,8 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
           <li>Each collected fee is split: 80% is added to the pool, 20% goes to a separate reserve.</li>
           <li>A written-off advance is taken from the reserve first. Only what the reserve cannot cover reduces the pool.</li>
           <li>At most 80% of the pool can be out in advances, so there is always money left to withdraw.</li>
+          <li>Money added to the pool can be withdrawn 7 days after the backer's last deposit.</li>
+          <li>The first dollar ever deposited stays locked, which keeps the share price honest for everyone after.</li>
           <li>
             A withdrawal is paid from money that is not currently lent. If too much is out, it has to wait for
             repayments.
@@ -241,7 +246,9 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
         />
         <p>
           The owner has no method that moves anyone's money, and there is no method to upgrade the contract. Every
-          rule on this page is a value in contract state that anyone can read.
+          rule on this page is a value in contract state that anyone can read. The values have ceilings the owner
+          cannot cross: an advance is never more than half of a typical payment or $1,000, and the fee never more
+          than 10%.
         </p>
       </>
     ),
@@ -258,6 +265,8 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
             ['Test dollars from an open faucet', 'USDC, delivered by NEAR Intents from any coin'],
             ['2 minutes of history', '30 days'],
             ['Late after 10 minutes, written off after 20', '45 and 90 days'],
+            ['A step up after an advance open for 15 seconds', '7 days'],
+            ['Pool withdrawals 1 minute after a deposit', '7 days'],
             ['An identity check that approves everyone', 'A real identity provider'],
             ['A throwaway account kept in your browser', 'Your own wallet'],
           ]}
@@ -317,7 +326,7 @@ const QUESTIONS: [string, ReactNode][] = [
   ],
   [
     'Has the contract been audited?',
-    'No. It has unit tests and tests that run the full flows on a local copy of the network, and it runs on testnet. It has not been reviewed by an outside auditor and should not hold real money yet.',
+    'Not by an outside auditor. It went through one internal review whose only job was to find ways to steal or cheat, and every attack found there is now a test the contract has to pass. It runs on testnet and should not hold real money until an outside audit.',
   ],
 ]
 

@@ -16,9 +16,12 @@ export type Params = {
   write_off_after_ms: number
   reserve_bps: number
   max_utilization_bps: number
+  min_payment: string
+  seasoning_ms: number
+  withdraw_delay_ms: number
 }
 
-type Advance = { principal: string; fee: string; repaid: string; opened_at: number; touched_at: number; late: boolean }
+type Advance = { id: number; principal: string; fee: string; repaid: string; opened_at: number; touched_at: number; late: boolean }
 
 export type Worker = {
   handle: string
@@ -27,6 +30,7 @@ export type Worker = {
   banned: boolean
   level: number
   payments_count: number
+  activity_count: number
   first_payment_at: number | null
   total_received: string
   pending: string
@@ -40,7 +44,14 @@ export type Limit = {
   reason: null | 'not_verified' | 'banned' | 'advance_open' | 'few_payments' | 'short_history'
 }
 
-type Payment = { amount: string; at: number }
+export type Activity = {
+  kind: 'payment' | 'advance' | 'repayment' | 'closed' | 'late' | 'written_off'
+  amount: string
+  fee: string
+  at: number
+}
+
+type Lp = { shares: string; unlocks_at: number }
 
 export type Pool = {
   assets: string
@@ -78,7 +89,7 @@ export const getHandle = (accountId: string) => read<string | null>('get_handle'
 export const getWorker = (handle: string) => read<Worker | null>('get_worker', { handle })
 export const getLimit = (handle: string) => read<Limit>('get_limit', { handle })
 export const getPool = () => read<Pool>('get_pool')
-export const getShares = (accountId: string) => read<string>('get_shares', { account_id: accountId })
+export const getLp = (accountId: string) => read<Lp>('get_lp', { account_id: accountId })
 
 /** Dollars sitting in an account's own wallet, outside the contract. */
 export async function getBalance(accountId: string) {
@@ -86,11 +97,11 @@ export async function getBalance(accountId: string) {
   return view<string>(usdc, 'ft_balance_of', { account_id: accountId })
 }
 
-/** The latest payments, newest first. `count` is the worker's payments_count. */
-export async function getRecentPayments(handle: string, count: number) {
+/** Everything the contract still remembers about a pay link, newest first. `count` is the worker's activity_count. */
+export async function getActivity(handle: string, count: number) {
   const from = Math.max(0, count - RECENT)
-  const payments = await read<Payment[]>('get_payments', { handle, from, limit: RECENT })
-  return payments.reverse()
+  const activity = await read<Activity[]>('get_activity', { handle, from, limit: RECENT })
+  return activity.reverse()
 }
 
 /** Same rule as the contract: a share of the amount with a fixed minimum. */
@@ -215,6 +226,10 @@ const PLAIN: Record<string, string> = {
   'withdrawal is too small': 'Your share is too small to withdraw.',
   'deposit is too small': 'That amount is too small. Add at least $1.',
   'nothing to claim': 'There is nothing waiting for you. Reload the page.',
+  'amount is below the minimum advance': 'The smallest advance is $1.',
+  'deposit is below the minimum': 'That amount is too small. Add at least $1.',
+  'first deposit must exceed the locked minimum': 'The first deposit into the pool has to be more than $1.',
+  'shares are still locked': 'Money you added recently cannot be withdrawn yet. Try again a little later.',
 }
 
 /** Turns a contract panic into a sentence for the person. Anything else is already one. */
