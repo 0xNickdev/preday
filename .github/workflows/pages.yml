@@ -34,7 +34,7 @@ jobs:
       - run: npm ci
       - run: npx vite build --base=/preday/
         env:
-          VITE_CONTRACT_ID: preday-v0.testnet
+          VITE_CONTRACT_ID: preday-v1.testnet
       # Pages serves 404.html for unknown paths, which lets pay links like /preday/anna load the app.
       - run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3

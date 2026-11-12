@@ -11,11 +11,11 @@ A pay link for people paid in crypto, with a paycheck advance that pays itself b
 [![CI](https://github.com/0xNickdev/preday/actions/workflows/ci.yml/badge.svg)](https://github.com/0xNickdev/preday/actions/workflows/ci.yml)
 [![Demo](https://img.shields.io/badge/demo-preday.vercel.app-111111.svg)](https://preday.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
-[![NEAR testnet](https://img.shields.io/badge/NEAR-testnet-111111.svg)](https://testnet.nearblocks.io/address/preday-v0.testnet)
+[![NEAR testnet](https://img.shields.io/badge/NEAR-testnet-111111.svg)](https://testnet.nearblocks.io/address/preday-v1.testnet)
 [![Contracts: Rust](https://img.shields.io/badge/contracts-Rust%20%2B%20near--sdk-111111.svg)](contracts)
-[![Tests](https://img.shields.io/badge/tests-101%20contract%20%2B%2048%20service-111111.svg)](#run-it)
+[![Tests](https://img.shields.io/badge/tests-143%20contract%20%2B%2048%20service-111111.svg)](#run-it)
 
-[Live demo](https://preday.vercel.app/) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v0.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
+[Live demo](https://preday.vercel.app/) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v1.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
 
 </div>
 
@@ -120,7 +120,8 @@ All of these live in contract state and are returned by `get_params`. Changing t
 | Eligibility | 3 payments, 30 days since the first one, one identity check per person |
 | Base | Median of the last 3 payments |
 | Limit | The lower of 30% of the base and the current step |
-| Steps | $25, $50, $100, $200, $400. One step up for each advance repaid on time |
+| Counted payments | $10 or more. Smaller ones are still delivered, but do not build history or reset a late clock |
+| Steps | $25, $50, $100, $200, $400. One step up for an advance repaid on time, if it was open at least 7 days and was at least half of the limit |
 | Open advances | One at a time |
 | Fee | 5% of the advance, $1 minimum, fixed when taken, collected at repayment |
 | Repayment | From the next payment: principal, then fee, the rest to the worker |
@@ -129,6 +130,8 @@ All of these live in contract state and are returned by `get_params`. Changing t
 | Written off | 90 days: the reserve absorbs the loss, then the pool. That identity gets no more advances |
 | Reserve | 20% of every fee |
 | Pool utilization | At most 80% of pool assets out in advances |
+| Pool withdrawals | 7 days after the backer's last deposit. The first $1 ever deposited stays locked |
+| History kept | The last 20 events per pay link |
 
 A 5% fee on a two-week advance is a high rate if you annualize it. The app shows the fee in dollars before the worker confirms and does not hide that.
 
@@ -183,11 +186,12 @@ flowchart LR
 | `mark_late(handle)`, `write_off(handle)` | Anyone, after the deadline | Moves a stale advance along |
 | `propose_params`, `apply_params` | Owner proposes, anyone applies after the delay | Timelocked rule changes |
 
-Views: `get_worker`, `get_handle`, `get_limit`, `get_payments`, `get_pool`, `get_shares`, `get_params`, `get_pending_params`, `get_config`.
+Views: `get_worker`, `get_handle`, `get_limit`, `get_activity`, `get_pool`, `get_shares`, `get_lp`, `get_params`, `get_pending_params`, `get_config`.
 
 What the contract cannot do:
 
 - The owner has no method that moves anyone's money.
+- The owner cannot set rules that would let them drain the pool. Hard ceilings are compiled in: an advance is never more than 50% of a typical payment or $1,000, the fee never more than 10%, and rule changes always wait at least the timelock. An open advance keeps the deadlines it was taken with.
 - A pay account has no keys. Only its code can act, and the code only forwards USDC to the main contract.
 - Amounts are integers of USDC minimal units. There is no floating point anywhere.
 
@@ -200,13 +204,13 @@ git clone https://github.com/0xNickdev/preday && cd preday
 
 # 1. The whole story on testnet, printed step by step (about 3 minutes)
 cd web && npm install
-echo "VITE_CONTRACT_ID=preday-v0.testnet" > .env
+echo "VITE_CONTRACT_ID=preday-v1.testnet" > .env
 npm run demo
 
 # 2. The app
 npm run dev            # http://localhost:5173
 
-# 3. Contracts: 92 unit tests and 9 sandbox tests with real cross-contract calls
+# 3. Contracts: 132 unit tests and 11 sandbox tests with real cross-contract calls
 cd ../contracts
 for crate in preday preday-account test-usdc test-verifier; do (cd $crate && cargo near build non-reproducible-wasm); done
 cargo test --workspace
@@ -234,6 +238,23 @@ echo "VITE_CONTRACT_ID=my-preday.testnet" > web/.env
 
 Service configuration is described in [`service/.env.example`](service/.env.example). Keys only ever come from the environment.
 
+## What we tried to break
+
+Before submission the contracts went through an adversarial review whose only job was to find ways to steal or cheat. Each finding was reproduced as a test and then closed.
+
+| Attack | Now |
+| --- | --- |
+| Owner raises the limit to the size of the pool, borrows it and defaults | Compiled-in ceilings on every rule that moves money, and a minimum timelock |
+| Climb the limit ladder in minutes with tiny advances repaid from your own pocket | A step-up needs an advance that stayed open for the seasoning period and was at least half of the limit |
+| Erase a debt by confusing two advances opened at the same moment | Every advance has its own number, and callbacks match on it |
+| Send dust to someone's link to wreck their limit, or to your own to never go late | Payments under the minimum are delivered but not counted |
+| Spam payments until the contract cannot pay for its storage | History is a fixed ring of 20 events, covered by the registration deposit |
+| Inflate the share price against the next depositor | The first dollar deposited is locked for good, and deposits have a minimum |
+| Add to the pool just before a repayment, take the fee, leave | Deposits are locked for the withdrawal delay |
+| A total loss leaves the pool unusable | The pool starts a new share epoch and keeps working |
+
+What this does not cover: the identity check is trusted completely, a person can still default once up to their limit, and a near-total loss leaves old shares almost worthless rather than reset.
+
 ## Status and limits
 
 Started on 12 November 2026 for NEAR Hackathon. It is not connected to any earlier project.
@@ -249,7 +270,7 @@ Started on 12 November 2026 for NEAR Hackathon. It is not connected to any earli
 | Real coins through NEAR Intents | Service built, request format verified with dry quotes. No real payment routed yet |
 | Identity check | Testnet stand-in that approves everyone |
 | Wallet sign-in | Not built. The demo signs with a throwaway key kept in the browser |
-| Audit | None |
+| Security review | One internal adversarial pass. Every attack it found is now a regression test. No outside audit |
 
 Stated plainly:
 
