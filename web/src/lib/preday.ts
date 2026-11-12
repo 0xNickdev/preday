@@ -1,5 +1,5 @@
 import { config } from './config'
-import { call, callForEvents, ensureGuest, view } from './near'
+import { accountExists, call, callForEvents, ensureGuest, view } from './near'
 
 /** Amounts are strings of USDC minimal units. Times are milliseconds. */
 
@@ -55,6 +55,8 @@ export type Pool = {
 }
 
 const BPS = 10_000n
+/** What the dollar token charges to register a new holder: 0.00125 NEAR. */
+const STORAGE_DEPOSIT = 1_250_000_000_000_000_000_000n
 const RECENT = 20
 
 function read<T>(method: string, args?: Record<string, unknown>) {
@@ -143,6 +145,30 @@ export async function verify(handle: string) {
 async function mint(accountId: string, amount: bigint) {
   const { usdc } = await getConfig()
   await call({ contractId: usdc, method: 'mint', args: { account_id: accountId, amount: String(amount) }, tgas: 30 })
+}
+
+/** Sends dollars from the guest's wallet to another account, registering it with the token first if needed. */
+export async function sendDollars(to: string, amount: bigint) {
+  // The token would happily register a name nobody owns, and the money would be stuck there.
+  if (!(await accountExists(to))) throw new Error('That NEAR account does not exist. Check the name.')
+  const { usdc } = await getConfig()
+  const registered = await view<unknown>(usdc, 'storage_balance_of', { account_id: to })
+  if (!registered) {
+    await call({
+      contractId: usdc,
+      method: 'storage_deposit',
+      args: { account_id: to, registration_only: true },
+      tgas: 30,
+      deposit: STORAGE_DEPOSIT,
+    })
+  }
+  await call({
+    contractId: usdc,
+    method: 'ft_transfer',
+    args: { receiver_id: to, amount: String(amount) },
+    tgas: 30,
+    deposit: 1n,
+  })
 }
 
 /** The named account a client pays into. */

@@ -9,6 +9,15 @@ export async function view<T>(contractId: string, method: string, args: Args = {
   return (await provider.callFunction({ contractId, method, args })) as T
 }
 
+export async function accountExists(accountId: string) {
+  try {
+    await provider.viewAccount({ accountId })
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * The demo signs with a throwaway testnet account kept in this browser,
  * so nobody needs a wallet to try the product.

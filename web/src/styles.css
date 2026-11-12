@@ -1194,6 +1194,11 @@ input {
   letter-spacing: inherit;
 }
 
+.balance ~ .btn,
+.balance ~ form {
+  margin-top: 16px;
+}
+
 .receipt-actions {
   margin-top: 18px;
 }

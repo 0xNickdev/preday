@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { AdvancePanel } from '../components/AdvancePanel'
 import { Claim } from '../components/Claim'
 import { Loading } from '../components/Loading'
+import { SendMoney } from '../components/SendMoney'
 import { date, usd } from '../lib/money'
 import { guestId } from '../lib/near'
 import { claim, getBalance, getHandle, getLimit, getParams, getRecentPayments, getWorker } from '../lib/preday'
@@ -67,6 +68,7 @@ function Home({ handle }: { handle: string }) {
             Payments and advances arrive here, in <span className="mono">{worker.owner}</span>. Preday does not hold
             them.
           </p>
+          <SendMoney balance={balance} onSent={live.refresh} />
         </section>
         <PayLink handle={handle} />
         <section className="panel">
