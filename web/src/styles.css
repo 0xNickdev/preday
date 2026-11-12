@@ -395,6 +395,133 @@ input {
   color: var(--muted);
 }
 
+.split.even {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+}
+
+.facts {
+  display: flex;
+  gap: 40px;
+  margin-top: 28px;
+}
+
+.facts dt {
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.facts dd {
+  margin-top: 4px;
+  font: 500 22px/1.2 var(--display);
+  letter-spacing: -0.02em;
+}
+
+.globe {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.globe:active {
+  cursor: grabbing;
+}
+
+.calculator .cap {
+  margin-top: 26px;
+  margin-bottom: 10px;
+}
+
+.calculator .cap:first-child {
+  margin-top: 0;
+}
+
+.calculator .amount {
+  margin-top: 0;
+}
+
+.calculator .rows {
+  margin-top: 26px;
+}
+
+.slider {
+  position: relative;
+  height: 40px;
+}
+
+.slider canvas {
+  position: absolute;
+  inset: 2px 0;
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.slider input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: grab;
+}
+
+.slider input:active {
+  cursor: grabbing;
+}
+
+.slider-thumb {
+  position: absolute;
+  top: 0;
+  width: 24px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.slider input:focus-visible + .slider-thumb {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.readout {
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout-digit {
+  position: relative;
+  display: inline-block;
+  width: 0.62em;
+  height: 1em;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.readout-digit > span {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.readout-digit > span > span {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 1em;
+}
+
 .terms div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
@@ -1236,6 +1363,10 @@ input {
 }
 
 @media (max-width: 860px) {
+  .split.even {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .bar nav {
     display: none;
   }
@@ -1344,6 +1475,10 @@ input {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .readout-digit > span {
+    transition: none;
+  }
+
   html {
     scroll-behavior: auto;
   }

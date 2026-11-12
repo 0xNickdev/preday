@@ -1,11 +1,13 @@
 import { Link } from 'react-router-dom'
 import { LazyMotion, MotionConfig, domAnimation } from 'motion/react'
+import { Calculator } from '../components/Calculator'
 import { Dither, type Region } from '../components/Dither'
 import { FlowDiagram } from '../components/FlowDiagram'
 import { HandsDots } from '../components/HandsDots'
 import { CoinIcon, StepIcon, type Coin, type Step } from '../components/Icons'
 import { Logo } from '../components/Logo'
 import { Marquee } from '../components/Marquee'
+import { PaymentsGlobe } from '../components/PaymentsGlobe'
 import { PoolFigures } from '../components/PoolFigures'
 import { Rise } from '../components/Rise'
 import { Story } from '../components/Story'
@@ -120,6 +122,43 @@ export function Landing() {
                   </li>
                 ))}
               </ol>
+            </div>
+          </section>
+
+          <section className="band">
+            <div className="wrap split even">
+              <div>
+                <h2>Clients anywhere. One link.</h2>
+                <p>
+                  Your client pays from the network they already use, with the coin they already hold. It is routed
+                  for them and reaches you as dollars. They do not need an account.
+                </p>
+                <dl className="facts">
+                  <div>
+                    <dt>From Base</dt>
+                    <dd>about 35 seconds</dd>
+                  </div>
+                  <div>
+                    <dt>From Tron</dt>
+                    <dd>about 80 seconds</dd>
+                  </div>
+                </dl>
+                <p className="note">Routing times are the estimates NEAR Intents returned for our test quotes.</p>
+              </div>
+              <PaymentsGlobe />
+            </div>
+          </section>
+
+          <section className="band">
+            <div className="wrap split even">
+              <div>
+                <h2>Run your own numbers</h2>
+                <p>
+                  You can take up to 30% of a typical payment, up to your current step. The step starts at $25 and
+                  doubles each time an advance is paid back on time.
+                </p>
+              </div>
+              <Calculator />
             </div>
           </section>
 
