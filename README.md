@@ -15,7 +15,7 @@ A pay link for people paid in crypto, with a paycheck advance that pays itself b
 [![Contracts: Rust](https://img.shields.io/badge/contracts-Rust%20%2B%20near--sdk-111111.svg)](contracts)
 [![Tests](https://img.shields.io/badge/tests-166%20contract%20%2B%2048%20service-111111.svg)](#run-it)
 
-[Live demo](https://preday.vercel.app/) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v2.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
+[Live demo](https://preday.vercel.app/) · [Demo video](https://x.com/Johnnny_0x/status/2120864166756196459) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v2.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
 
 </div>
 
@@ -270,7 +270,7 @@ Started on 12 November 2026 for NEAR Hackathon. It is not connected to any earli
 | Pool, shares, reserve | Working on testnet |
 | Browser flow without a wallet | Working, verified by hand |
 | Service sweep after a payment | Verified on testnet: the keeper swept a pay account and the contract settled an open advance |
-| Real coins through NEAR Intents | Service built, request format verified with dry quotes. No real payment routed yet |
+| Real coins through NEAR Intents | The pay page shows a live dry quote from the 1Click API for the chosen coin. Service built, request format verified with dry quotes. No real payment routed yet |
 | Identity check | Testnet stand-in that approves everyone |
 | Wallet sign-in | Not built. The demo signs with a throwaway key kept in the browser |
 | Security review | One internal adversarial pass. Every attack it found is now a regression test. No outside audit |

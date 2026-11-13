@@ -5,11 +5,13 @@ import { config } from '../lib/config'
 import { parseUsd, usd } from '../lib/money'
 import { guestId } from '../lib/near'
 import { getWorker, pay, type Receipt } from '../lib/preday'
-import { COINS, estimate, loadTokens } from '../lib/tokens'
+import { COINS, estimate, loadTokens, quote, type Quote } from '../lib/tokens'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
 
 const MIN = 1_000_000n
+
+const about = (seconds: number) => (seconds >= 90 ? `about ${Math.round(seconds / 60)} min` : `about ${seconds} sec`)
 
 export function Pay() {
   const handle = (useParams().handle ?? '').toLowerCase()
@@ -89,6 +91,24 @@ function PayForm({ handle, onPaid }: { handle: string; onPaid: (receipt: Receipt
   const valid = amount !== null && amount >= MIN
   const sends = valid ? estimate(tokens, coin, amount) : null
 
+  const asked = valid ? `${coin.label} ${amount}` : null
+  const [answer, setAnswer] = useState<{ asked: string; quote: Quote | null } | null>(null)
+  const live = answer?.asked === asked ? answer.quote : null
+
+  useEffect(() => {
+    if (asked === null || amount === null) return
+    const control = new AbortController()
+    const timer = setTimeout(() => {
+      void quote(tokens, coin, amount, control.signal).then((found) => {
+        if (!control.signal.aborted) setAnswer({ asked, quote: found })
+      })
+    }, 400)
+    return () => {
+      clearTimeout(timer)
+      control.abort()
+    }
+  }, [tokens, coin, amount, asked])
+
   return (
     <form
       className="narrow panel"
@@ -138,11 +158,26 @@ function PayForm({ handle, onPaid }: { handle: string; onPaid: (receipt: Receipt
           </div>
         </div>
         <dl className="rows num">
-          {sends && (
-            <div>
-              <dt>You send about</dt>
-              <dd>{sends}</dd>
-            </div>
+          {live ? (
+            <>
+              <div>
+                <dt>You send</dt>
+                <dd>{live.sends}</dd>
+              </div>
+              {live.seconds > 0 && (
+                <div>
+                  <dt>Arrives via NEAR Intents in</dt>
+                  <dd>{about(live.seconds)}</dd>
+                </div>
+              )}
+            </>
+          ) : (
+            sends && (
+              <div>
+                <dt>You send about</dt>
+                <dd>{sends}</dd>
+              </div>
+            )
           )}
           <div>
             <dt>{handle} gets</dt>
@@ -158,8 +193,8 @@ function PayForm({ handle, onPaid }: { handle: string; onPaid: (receipt: Receipt
           </p>
         )}
         <p className="note">
-          This demo runs on NEAR testnet, where real coins cannot be routed. Test dollars take the same path through
-          the contract.
+          The quote is live from NEAR Intents on mainnet. The demo itself runs on NEAR testnet, where real coins
+          cannot be routed, so the payment uses test dollars on the same path through the contract.
         </p>
       </div>
     </form>

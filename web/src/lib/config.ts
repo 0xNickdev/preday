@@ -6,4 +6,5 @@ export const config = {
   faucet: 'https://helper.nearprotocol.com/account',
   explorer: 'https://testnet.nearblocks.io',
   tokens: 'https://1click.chaindefuser.com/v0/tokens',
+  quote: 'https://1click.chaindefuser.com/v0/quote',
 }
