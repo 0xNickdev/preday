@@ -282,7 +282,7 @@ Started on 12 November 2026 for NEAR Hackathon. It is not connected to any earli
 | Late and write-off | Buttons on the dashboard of an open advance once the deadlines pass (10 and 20 minutes in the demo) |
 | Withdrawal to another network | The dashboard prices it live with the 0.3% fee. The service attaches the fee to the real quote. Not executed: test dollars cannot leave testnet |
 | Identity check | Testnet stand-in that approves everyone |
-| Wallet sign-in | Optional. "Connect wallet" opens a chooser of testnet wallets, and the connected account then signs everything that is its own: claiming, verifying, advances, sending, pool deposits. Public calls such as a client's payment stay on the throwaway browser key. Without a wallet the demo works as before |
+| Wallet sign-in | Optional. "Connect wallet" opens a chooser of testnet wallets, and the connected account then signs everything that is its own: claiming, verifying, advances, sending, pool deposits. Public calls such as a client's payment stay on the throwaway browser key. Without a wallet the demo works as before. Checked end to end on testnet through the NEAR CLI option: sign in, a claim signed by the wallet, a client payment with no wallet prompt, sign out. Other wallets in the chooser were not tried |
 | Security review | One internal adversarial pass. Every attack it found is now a regression test. No outside audit |
 
 Stated plainly:
