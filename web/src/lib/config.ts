@@ -7,4 +7,6 @@ export const config = {
   explorer: 'https://testnet.nearblocks.io',
   tokens: 'https://1click.chaindefuser.com/v0/tokens',
   quote: 'https://1click.chaindefuser.com/v0/quote',
+  /** The Preday service that issues deposit addresses. Without it the pay page only takes test dollars. */
+  service: (env.VITE_SERVICE_URL as string | undefined)?.replace(/\/$/, ''),
 }

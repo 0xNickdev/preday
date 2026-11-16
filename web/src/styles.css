@@ -1155,6 +1155,10 @@ input {
   margin-top: clamp(16px, 2vw, 24px);
 }
 
+.panel .note + h2 {
+  margin-top: 28px;
+}
+
 .panel h2 {
   margin-bottom: 14px;
   font: 600 19px/1.3 var(--text);
@@ -1170,6 +1174,11 @@ input {
   font: 500 clamp(52px, 7vw, 88px) / 1 var(--display);
   letter-spacing: -0.045em;
   font-variant-numeric: tabular-nums;
+}
+
+.amount.small {
+  font-size: clamp(34px, 5vw, 52px);
+  overflow-wrap: anywhere;
 }
 
 /* The amount as something you type, on the pay page. */
@@ -1329,6 +1338,55 @@ input {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--paper);
+}
+
+/* Where to send a real payment: the code to scan beside the address to copy. */
+.deposit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+
+.deposit > .stack {
+  flex: 1 1 200px;
+}
+
+.qr {
+  flex: none;
+  width: 168px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+  fill: #111111;
+}
+
+.address {
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+}
+
+.waiting::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+  animation: waiting 1.2s ease-in-out infinite;
+}
+
+@keyframes waiting {
+  50% {
+    opacity: 0.2;
+  }
 }
 
 .ladder {
@@ -1635,6 +1693,10 @@ input {
 @media (prefers-reduced-motion: reduce) {
   .readout-digit > span {
     transition: none;
+  }
+
+  .waiting::before {
+    animation: none;
   }
 
   html {

@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { DepositStep } from '../components/DepositStep'
 import { Loading } from '../components/Loading'
 import { config } from '../lib/config'
 import { parseUsd, usd } from '../lib/money'
 import { guestId } from '../lib/near'
 import { getWorker, pay, type Receipt } from '../lib/preday'
-import { COINS, estimate, loadTokens, quote, type Quote } from '../lib/tokens'
+import { COINS, about, estimate, loadTokens, openDeposit, quote, type Coin, type Deposit, type Quote } from '../lib/tokens'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
 
 const MIN = 1_000_000n
 
-const about = (seconds: number) => (seconds >= 90 ? `about ${Math.round(seconds / 60)} min` : `about ${seconds} sec`)
+/** What a finished payment leaves on screen. Only a demo payment knows its transaction and how it was split. */
+type Paid = { amount: bigint; receipt?: Receipt }
+type Pending = { amount: bigint; coin: Coin; deposit: Deposit; left: number }
 
 export function Pay() {
   const handle = (useParams().handle ?? '').toLowerCase()
@@ -20,7 +23,8 @@ export function Pay() {
 
 function PayPage({ handle }: { handle: string }) {
   const worker = useLive(() => getWorker(handle))
-  const [paid, setPaid] = useState<Receipt | null>(null)
+  const [paid, setPaid] = useState<Paid | null>(null)
+  const [pending, setPending] = useState<Pending | null>(null)
 
   if (worker.data === undefined) return <Loading failed={worker.failed} />
 
@@ -47,25 +51,27 @@ function PayPage({ handle }: { handle: string }) {
             <dd>{usd(paid.amount, 'always')}</dd>
           </div>
           {/* Only the owner of the link sees how the payment was split. A client has no business knowing about an advance. */}
-          {worker.data.owner === guestId() && (
+          {paid.receipt && worker.data.owner === guestId() && (
             <>
-              {paid.repaid + paid.fee > 0n && (
+              {paid.receipt.repaid + paid.receipt.fee > 0n && (
                 <div>
                   <dt>Paid back your advance and its fee</dt>
-                  <dd>{usd(paid.repaid + paid.fee, 'always')}</dd>
+                  <dd>{usd(paid.receipt.repaid + paid.receipt.fee, 'always')}</dd>
                 </div>
               )}
               <div>
                 <dt>Sent to your wallet</dt>
-                <dd>{usd(paid.forwarded, 'always')}</dd>
+                <dd>{usd(paid.receipt.forwarded, 'always')}</dd>
               </div>
             </>
           )}
         </dl>
         <div className="stack receipt-actions">
-          <a href={`${config.explorer}/txns/${paid.hash}`} target="_blank" rel="noreferrer">
-            See this payment on the testnet explorer
-          </a>
+          {paid.receipt && (
+            <a href={`${config.explorer}/txns/${paid.receipt.hash}`} target="_blank" rel="noreferrer">
+              See this payment on the testnet explorer
+            </a>
+          )}
           <button className="btn ghost wide" onClick={() => setPaid(null)}>
             Pay again
           </button>
@@ -74,11 +80,31 @@ function PayPage({ handle }: { handle: string }) {
     )
   }
 
-  return <PayForm handle={handle} onPaid={setPaid} />
+  if (pending !== null) {
+    return (
+      <DepositStep
+        handle={handle}
+        amount={pending.amount}
+        network={pending.coin.network}
+        deposit={pending.deposit}
+        left={pending.left}
+        onPaid={() => {
+          setPaid({ amount: pending.amount })
+          setPending(null)
+        }}
+        onBack={() => setPending(null)}
+      />
+    )
+  }
+
+  return <PayForm handle={handle} onPaid={setPaid} onDeposit={setPending} />
 }
 
-function PayForm({ handle, onPaid }: { handle: string; onPaid: (receipt: Receipt) => void }) {
+type FormProps = { handle: string; onPaid: (paid: Paid) => void; onDeposit: (pending: Pending) => void }
+
+function PayForm({ handle, onPaid, onDeposit }: FormProps) {
   const [input, setInput] = useState('')
+  const [refundTo, setRefundTo] = useState('')
   const [coin, setCoin] = useState(COINS[0])
   const [tokens, setTokens] = useState<Awaited<ReturnType<typeof loadTokens>>>([])
   const action = useAction()
@@ -116,7 +142,9 @@ function PayForm({ handle, onPaid }: { handle: string; onPaid: (receipt: Receipt
         event.preventDefault()
         if (!valid) return
         void action.run(async () => {
-          onPaid(await pay(handle, amount))
+          if (!config.service) return onPaid({ amount, receipt: await pay(handle, amount) })
+          const deposit = await openDeposit(tokens, coin, handle, amount, refundTo.trim())
+          onDeposit({ amount, coin, deposit, left: deposit.deadline - Date.now() })
         })
       }}
     >
@@ -184,18 +212,40 @@ function PayForm({ handle, onPaid }: { handle: string; onPaid: (receipt: Receipt
             <dd>{usd(valid ? amount : 0n, 'always')}</dd>
           </div>
         </dl>
+        {config.service && (
+          <label className="field">
+            Your {coin.network} address, in case the payment has to be returned
+            <span className="input">
+              <input
+                value={refundTo}
+                onChange={(event) => setRefundTo(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                required
+              />
+            </span>
+          </label>
+        )}
         <button className="btn wide" disabled={!valid || action.busy}>
-          {action.busy ? 'Paying...' : 'Pay with test dollars'}
+          {config.service
+            ? action.busy
+              ? 'Getting an address...'
+              : `Pay with ${coin.label}`
+            : action.busy
+              ? 'Paying...'
+              : 'Pay with test dollars'}
         </button>
         {action.error && (
           <p className="note late" role="alert">
             {action.error}
           </p>
         )}
-        <p className="note">
-          The quote is live from NEAR Intents on mainnet. The demo itself runs on NEAR testnet, where real coins
-          cannot be routed, so the payment uses test dollars on the same path through the contract.
-        </p>
+        {!config.service && (
+          <p className="note">
+            The quote is live from NEAR Intents on mainnet. The demo itself runs on NEAR testnet, where real coins
+            cannot be routed, so the payment uses test dollars on the same path through the contract.
+          </p>
+        )}
       </div>
     </form>
   )
