@@ -13,7 +13,7 @@ A pay link for people paid in crypto, with a paycheck advance that pays itself b
 [![License: MIT](https://img.shields.io/badge/license-MIT-111111.svg)](LICENSE)
 [![NEAR testnet](https://img.shields.io/badge/NEAR-testnet-111111.svg)](https://testnet.nearblocks.io/address/preday-v2.testnet)
 [![Contracts: Rust](https://img.shields.io/badge/contracts-Rust%20%2B%20near--sdk-111111.svg)](contracts)
-[![Tests](https://img.shields.io/badge/tests-166%20contract%20%2B%2048%20service-111111.svg)](#run-it)
+[![Tests](https://img.shields.io/badge/tests-166%20contract%20%2B%2052%20service-111111.svg)](#run-it)
 
 [Live demo](https://preday.vercel.app/) · [Demo video](https://x.com/Johnnny_0x/status/2120864166756196459) · [Docs](https://preday.vercel.app/docs) · [Contract on testnet](https://testnet.nearblocks.io/address/preday-v2.testnet) · [How it works](#how-a-payment-moves) · [Run it](#run-it)
 
@@ -216,7 +216,7 @@ cd ../contracts
 for crate in preday preday-account test-usdc test-verifier; do (cd $crate && cargo near build non-reproducible-wasm); done
 cargo test --workspace
 
-# 4. Payment service: 48 tests, plus dry quotes against the real 1Click API
+# 4. Payment service: 52 tests, plus dry quotes against the real 1Click API
 cd ../service && npm install && npm test && npm run test:live
 ```
 
@@ -238,6 +238,14 @@ echo "VITE_CONTRACT_ID=my-preday.testnet" > web/.env
 ```
 
 Service configuration is described in [`service/.env.example`](service/.env.example). Keys only ever come from the environment.
+
+Setting `VITE_SERVICE_URL` in `web/.env` to a running service turns the pay page from test dollars to real coins: it asks the service for a quote and shows the deposit address, a QR code, the deadline and the live status of the transfer. This needs a mainnet contract, because 1Click only delivers to accounts that exist on mainnet.
+
+| Service route | What it does |
+| --- | --- |
+| `POST /quote` | A deposit address that turns the client's coin into an exact USDC amount on the pay account. The service watches it and sweeps the pay account on arrival |
+| `GET /status` | Where that deposit is: waiting, seen, converting, delivered or refunded |
+| `POST /payout-quote` | A deposit address that turns USDC from a worker's own wallet into a coin on another network, with the 0.3% fee attached for the fee account |
 
 ## What we tried to break
 
@@ -270,7 +278,9 @@ Started on 12 November 2026 for NEAR Hackathon. It is not connected to any earli
 | Pool, shares, reserve | Working on testnet |
 | Browser flow without a wallet | Working, verified by hand |
 | Service sweep after a payment | Verified on testnet: the keeper swept a pay account and the contract settled an open advance |
-| Real coins through NEAR Intents | The pay page shows a live dry quote from the 1Click API for the chosen coin. Service built, request format verified with dry quotes. No real payment routed yet |
+| Real coins through NEAR Intents | The pay page shows a live dry quote from the 1Click API. With a service configured it runs the full deposit step: address, QR code, deadline and status. That step was checked against a real 1Click quote. No real coins were sent through it |
+| Late and write-off | Buttons on the dashboard of an open advance once the deadlines pass (10 and 20 minutes in the demo) |
+| Withdrawal to another network | The dashboard prices it live with the 0.3% fee. The service attaches the fee to the real quote. Not executed: test dollars cannot leave testnet |
 | Identity check | Testnet stand-in that approves everyone |
 | Wallet sign-in | Not built. The demo signs with a throwaway key kept in the browser |
 | Security review | One internal adversarial pass. Every attack it found is now a regression test. No outside audit |
@@ -280,7 +290,7 @@ Stated plainly:
 - **Mainnet.** NEAR Intents has no testnet, so on testnet a "payment" is test dollars minted to the pay account. From there it takes the same path through the contract.
 - **Identity.** The contract stores only a hash and already enforces one person, one handle. A real provider plugs in as the `verifier` account.
 - **Upgradability.** The demo contract account still holds a full-access key, so its code can be replaced. A production deployment would delete that key.
-- **Cross-chain withdrawal fee** from the product plan is not implemented.
+- **Cross-chain withdrawal fee.** 0.3%, taken by 1Click out of the swap and paid to the fee account. Sending to a NEAR account is free. Built and covered by tests and a live dry quote, never run with real money.
 
 ## Disclosure
 

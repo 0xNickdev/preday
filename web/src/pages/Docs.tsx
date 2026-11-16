@@ -169,6 +169,10 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
           A 5% fee on an advance that lasts two weeks is a high rate if you annualize it. We show the fee in dollars
           before you confirm so you can judge it as what it is: a fixed price for getting part of a payment early.
         </p>
+        <p>
+          Money in your wallet is yours to move. Sending it to another NEAR account is free. Sending it to another
+          network goes through NEAR Intents and costs 0.3% of the amount, shown in dollars before you send.
+        </p>
       </>
     ),
   },
@@ -196,7 +200,8 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
         </p>
         <p>
           Marking an advance late or writing it off is a public call that anyone can make once the deadline has
-          passed. No operator decides who is late.
+          passed. No operator decides who is late. In the demo both calls are buttons on the dashboard of an open
+          advance, so you can watch what they do.
         </p>
       </>
     ),
