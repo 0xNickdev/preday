@@ -4,7 +4,7 @@ import { DepositStep } from '../components/DepositStep'
 import { Loading } from '../components/Loading'
 import { config } from '../lib/config'
 import { parseUsd, usd } from '../lib/money'
-import { guestId } from '../lib/near'
+import { accountId } from '../lib/near'
 import { getWorker, pay, type Receipt } from '../lib/preday'
 import { COINS, about, estimate, loadTokens, openDeposit, quote, type Coin, type Deposit, type Quote } from '../lib/tokens'
 import { useAction } from '../lib/useAction'
@@ -51,7 +51,7 @@ function PayPage({ handle }: { handle: string }) {
             <dd>{usd(paid.amount, 'always')}</dd>
           </div>
           {/* Only the owner of the link sees how the payment was split. A client has no business knowing about an advance. */}
-          {paid.receipt && worker.data.owner === guestId() && (
+          {paid.receipt && worker.data.owner === accountId() && (
             <>
               {paid.receipt.repaid + paid.receipt.fee > 0n && (
                 <div>

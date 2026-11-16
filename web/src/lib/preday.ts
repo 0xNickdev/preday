@@ -1,5 +1,5 @@
 import { config } from './config'
-import { accountExists, call, callForEvents, ensureGuest, view } from './near'
+import { accountExists, call, callForEvents, ensureAccount, view } from './near'
 
 /** Amounts are strings of USDC minimal units. Times are milliseconds. */
 
@@ -153,8 +153,8 @@ export function claim() {
 }
 
 /** Public calls: anyone may make them once the advance has gone without a payment for long enough. */
-export const markLate = (handle: string) => call({ contractId: config.contract, method: 'mark_late', args: { handle }, tgas: 30 })
-export const writeOff = (handle: string) => call({ contractId: config.contract, method: 'write_off', args: { handle }, tgas: 30 })
+export const markLate = (handle: string) => call({ contractId: config.contract, method: 'mark_late', args: { handle }, tgas: 30, anyone: true })
+export const writeOff = (handle: string) => call({ contractId: config.contract, method: 'write_off', args: { handle }, tgas: 30, anyone: true })
 
 /** Testnet stand-in for an identity check: the verifier approves whoever calls it. */
 export async function verify(handle: string) {
@@ -164,10 +164,10 @@ export async function verify(handle: string) {
 
 async function mint(accountId: string, amount: bigint) {
   const { usdc } = await getConfig()
-  await call({ contractId: usdc, method: 'mint', args: { account_id: accountId, amount: String(amount) }, tgas: 30 })
+  await call({ contractId: usdc, method: 'mint', args: { account_id: accountId, amount: String(amount) }, tgas: 30, anyone: true })
 }
 
-/** Sends dollars from the guest's wallet to another account, registering it with the token first if needed. */
+/** Sends dollars from the acting account's wallet to another account, registering it with the token first if needed. */
 export async function sendDollars(to: string, amount: bigint) {
   // The token would happily register a name nobody owns, and the money would be stuck there.
   if (!(await accountExists(to))) throw new Error('That NEAR account does not exist. Check the name.')
@@ -180,6 +180,7 @@ export async function sendDollars(to: string, amount: bigint) {
       args: { account_id: to, registration_only: true },
       tgas: 30,
       deposit: STORAGE_DEPOSIT,
+      anyone: true,
     })
   }
   await call({
@@ -203,17 +204,17 @@ export type Receipt = { hash: string; amount: bigint; repaid: bigint; fee: bigin
 export async function pay(handle: string, amount: bigint): Promise<Receipt> {
   const account = payAccount(handle)
   await mint(account, amount)
-  const { hash, events } = await callForEvents({ contractId: account, method: 'sweep', tgas: 150 })
+  const { hash, events } = await callForEvents({ contractId: account, method: 'sweep', tgas: 150, anyone: true })
   const repay = events.find(({ event }) => event === 'repay')?.data
   const repaid = BigInt((repay?.principal as string | undefined) ?? 0)
   const fee = BigInt((repay?.fee as string | undefined) ?? 0)
   return { hash, amount, repaid, fee, forwarded: amount - repaid - fee }
 }
 
-/** Mints test dollars to the guest and deposits them into the pool. */
+/** Mints test dollars to the acting account and deposits them into the pool. */
 export async function addToPool(amount: bigint) {
   const { usdc } = await getConfig()
-  await mint(await ensureGuest(), amount)
+  await mint(await ensureAccount(), amount)
   await call({
     contractId: usdc,
     method: 'ft_transfer_call',

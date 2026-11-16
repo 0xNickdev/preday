@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { config } from '../lib/config'
 import { register } from '../lib/preday'
+import { useAccount } from '../lib/useAccount'
 import { useAction } from '../lib/useAction'
 
 // These would hide behind the app's own pages.
@@ -20,6 +21,7 @@ function problem(name: string) {
 export function Claim({ onClaimed }: { onClaimed: () => Promise<void> }) {
   const [name, setName] = useState('')
   const action = useAction()
+  const { wallet } = useAccount()
   const invalid = name ? problem(name) : null
 
   return (
@@ -63,8 +65,9 @@ export function Claim({ onClaimed }: { onClaimed: () => Promise<void> }) {
           </p>
         )}
         <p className="note">
-          This demo creates a throwaway NEAR testnet account in this browser and claims the name with it. No wallet
-          needed, no real money involved.
+          {wallet
+            ? `Your wallet ${wallet} claims the name and pays the 0.035 testnet NEAR deposit. No real money involved.`
+            : 'This demo creates a throwaway NEAR testnet account in this browser and claims the name with it. No wallet needed, no real money involved.'}
         </p>
       </form>
     </div>

@@ -2,22 +2,27 @@ import { useState } from 'react'
 import { Loading } from '../components/Loading'
 import { PoolFigures } from '../components/PoolFigures'
 import { dateTime, duration, parseUsd, usd } from '../lib/money'
-import { guestId } from '../lib/near'
 import { addToPool, getParams, getLp, getPool, withdraw } from '../lib/preday'
+import { useAccount } from '../lib/useAccount'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
 
 const MIN = 1_000_000n
 
-async function loadPool() {
-  const guest = guestId()
-  const [pool, params, lp] = await Promise.all([getPool(), getParams(), guest ? getLp(guest) : null])
+async function loadPool(account: string | null) {
+  const [pool, params, lp] = await Promise.all([getPool(), getParams(), account ? getLp(account) : null])
   // The time of the read, so the lock is judged at the same moment as the data.
   return { pool, params, shares: lp?.shares ?? '0', unlocksAt: lp?.unlocks_at ?? 0, now: Date.now() }
 }
 
 export function Pool() {
-  const live = useLive(loadPool)
+  const { account } = useAccount()
+  // A different account holds a different share, so nothing of the previous one may linger.
+  return <Backing key={account ?? ''} account={account} />
+}
+
+function Backing({ account }: { account: string | null }) {
+  const live = useLive(() => loadPool(account))
   const [input, setInput] = useState('100')
   const add = useAction()
   const take = useAction()
@@ -107,8 +112,8 @@ export function Pool() {
               </p>
             )}
             <p className="note">
-              Testnet only. The demo mints test dollars to a throwaway account in this browser, then moves them into
-              the pool.
+              Testnet only. The demo mints test dollars to {account ?? 'a throwaway account in this browser'}, then
+              moves them into the pool.
             </p>
           </form>
 

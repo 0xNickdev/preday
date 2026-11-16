@@ -277,7 +277,7 @@ const SECTIONS: { id: string; title: string; body: ReactNode }[] = [
             ['A step up after an advance open for 15 seconds', '7 days'],
             ['Pool withdrawals 1 minute after a deposit', '7 days'],
             ['An identity check that approves everyone', 'A real identity provider'],
-            ['A throwaway account kept in your browser', 'Your own wallet'],
+            ['A throwaway account kept in your browser, or a testnet wallet you connect', 'Your own wallet'],
           ]}
         />
         <p>

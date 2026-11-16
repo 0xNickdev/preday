@@ -1609,6 +1609,11 @@ input {
     order: 1;
   }
 
+  .bar.app > .btn {
+    order: 2;
+    justify-self: start;
+  }
+
   .hero-bar {
     justify-content: space-between;
     padding-top: 22px;

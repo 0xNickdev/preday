@@ -1,11 +1,11 @@
-import { useSyncExternalStore } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { config } from '../lib/config'
-import { guestId, onGuest } from '../lib/near'
+import { connectWallet, disconnectWallet } from '../lib/near'
+import { useAccount } from '../lib/useAccount'
 import { Logo } from './Logo'
 
 export function Shell() {
-  const guest = useSyncExternalStore(onGuest, guestId)
+  const { account, wallet } = useAccount()
 
   return (
     <>
@@ -17,7 +17,14 @@ export function Shell() {
           <NavLink to="/docs">Docs</NavLink>
         </nav>
         <span className="badge">Testnet demo</span>
-        {guest && <span className="mono muted">{guest}</span>}
+        {account && <span className="mono muted">{account}</span>}
+        <button
+          className="btn small ghost"
+          // Backing out of the wallet chooser is not an error worth showing.
+          onClick={() => void (wallet ? disconnectWallet() : connectWallet()).catch(() => undefined)}
+        >
+          {wallet ? 'Disconnect' : 'Connect wallet'}
+        </button>
       </header>
       <main className="wrap page">
         {config.contract ? (

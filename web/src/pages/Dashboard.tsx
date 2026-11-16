@@ -6,16 +6,19 @@ import { Claim } from '../components/Claim'
 import { Loading } from '../components/Loading'
 import { SendMoney } from '../components/SendMoney'
 import { usd } from '../lib/money'
-import { guestId } from '../lib/near'
 import { claim, getActivity, getBalance, getHandle, getLimit, getParams, getWorker } from '../lib/preday'
+import { useAccount } from '../lib/useAccount'
 import { useAction } from '../lib/useAction'
 import { useLive } from '../lib/useLive'
 
 export function Dashboard() {
-  const handle = useLive(async () => {
-    const guest = guestId()
-    return guest ? getHandle(guest) : null
-  })
+  const { account } = useAccount()
+  // A different account is a different dashboard, so nothing of the previous one may linger.
+  return <Mine key={account ?? ''} account={account} />
+}
+
+function Mine({ account }: { account: string | null }) {
+  const handle = useLive(async () => (account ? getHandle(account) : null))
 
   if (handle.data === undefined) return <Loading failed={handle.failed} />
   if (handle.data === null) return <Claim onClaimed={handle.refresh} />
