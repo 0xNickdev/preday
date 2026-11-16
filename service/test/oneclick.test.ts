@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createOneClick, OneClickError, USDC_ON_NEAR } from '../src/oneclick.ts';
+import { createOneClick, OneClickError, PAYOUT_FEE_BPS, USDC_ON_NEAR } from '../src/oneclick.ts';
 
 interface Call {
   url: string;
@@ -60,6 +60,36 @@ test('quote sends an EXACT_OUTPUT request for USDC on NEAR to the recipient', as
   });
   const lifetime = Date.parse(deadline) - before;
   assert.ok(lifetime >= 15 * 60 * 1000 && lifetime < 16 * 60 * 1000, `deadline is ${lifetime} ms ahead`);
+});
+
+test('payout sends an EXACT_INPUT request out of USDC on NEAR with the Preday fee attached', async () => {
+  const { calls, fetchFn } = fakeFetch(201, { quote: QUOTE });
+
+  await createOneClick(undefined, fetchFn).payout({
+    destinationAsset: 'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near',
+    amountIn: '100000000',
+    recipient: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7',
+    refundTo: 'anna.near',
+    feeRecipient: 'fees.preday.near',
+  });
+
+  const { deadline, ...sent } = JSON.parse(calls[0]!.init.body as string);
+  assert.equal(typeof deadline, 'string');
+  assert.equal(PAYOUT_FEE_BPS, 30);
+  assert.deepEqual(sent, {
+    dry: false,
+    swapType: 'EXACT_INPUT',
+    slippageTolerance: 100,
+    originAsset: USDC_ON_NEAR,
+    depositType: 'ORIGIN_CHAIN',
+    destinationAsset: 'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near',
+    amount: '100000000',
+    refundTo: 'anna.near',
+    refundType: 'ORIGIN_CHAIN',
+    recipient: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7',
+    recipientType: 'DESTINATION_CHAIN',
+    appFees: [{ recipient: 'fees.preday.near', fee: 30 }],
+  });
 });
 
 test('the API key is sent in the x-api-key header', async () => {

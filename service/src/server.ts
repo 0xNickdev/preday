@@ -19,7 +19,13 @@ try {
 const oneClick = createOneClick(config.oneClickApiKey);
 const watcher = createWatcher(oneClick, createSweep(config));
 const server = createServer(
-  createApp({ predayContract: config.predayContract, allowedOrigin: config.allowedOrigin, oneClick, watcher }),
+  createApp({
+    predayContract: config.predayContract,
+    feeAccount: config.feeAccountId,
+    allowedOrigin: config.allowedOrigin,
+    oneClick,
+    watcher,
+  }),
 );
 
 const stopWatching = watcher.start(POLL_INTERVAL_MS);

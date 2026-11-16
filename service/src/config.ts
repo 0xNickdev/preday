@@ -6,6 +6,7 @@ export interface Config {
   nearRpcUrl: string;
   keeperAccountId: string;
   keeperPrivateKey: KeyPairString;
+  feeAccountId: string;
   oneClickApiKey: string | undefined;
   allowedOrigin: string;
 }
@@ -16,6 +17,7 @@ const REQUIRED = [
   'NEAR_RPC_URL',
   'KEEPER_ACCOUNT_ID',
   'KEEPER_PRIVATE_KEY',
+  'FEE_ACCOUNT_ID',
   'ALLOWED_ORIGIN',
 ] as const;
 
@@ -41,6 +43,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     nearRpcUrl: read('NEAR_RPC_URL'),
     keeperAccountId: read('KEEPER_ACCOUNT_ID'),
     keeperPrivateKey,
+    feeAccountId: read('FEE_ACCOUNT_ID'),
     oneClickApiKey: env.ONECLICK_API_KEY?.trim() || undefined,
     allowedOrigin: read('ALLOWED_ORIGIN'),
   };

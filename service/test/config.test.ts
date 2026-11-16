@@ -7,6 +7,7 @@ const ENV = {
   PREDAY_CONTRACT: 'preday.near',
   NEAR_RPC_URL: 'https://rpc.example',
   KEEPER_ACCOUNT_ID: 'keeper.preday.near',
+  FEE_ACCOUNT_ID: 'fees.preday.near',
   KEEPER_PRIVATE_KEY: 'ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8tnFQuwoGUC51DowKqorvkr2pytJSnwuSbsNVfqygr',
   ALLOWED_ORIGIN: 'https://app.preday.test',
 };
@@ -18,6 +19,7 @@ test('loads a complete environment', () => {
     nearRpcUrl: 'https://rpc.example',
     keeperAccountId: 'keeper.preday.near',
     keeperPrivateKey: ENV.KEEPER_PRIVATE_KEY,
+    feeAccountId: 'fees.preday.near',
     oneClickApiKey: 'jwt',
     allowedOrigin: 'https://app.preday.test',
   });

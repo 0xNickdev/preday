@@ -123,3 +123,49 @@ export async function depositStatus(address: string, signal: AbortSignal) {
     return null
   }
 }
+
+/** Preday's cut of a withdrawal to another network, the same figure the service attaches to the real quote. */
+export const PAYOUT_FEE_BPS = 30n
+
+export const payoutFee = (amount: bigint) => (amount * PAYOUT_FEE_BPS) / 10_000n
+
+export type Payout = { gets: string; seconds: number }
+
+/**
+ * What `amount` dollars from a NEAR wallet would become on another network after the Preday fee, asked as a dry run.
+ * Throws when the address is not one the network accepts. Null when there is no route or no answer.
+ */
+export async function payoutQuote(tokens: Token[], coin: Coin, amount: bigint, recipient: string, signal: AbortSignal): Promise<Payout | null> {
+  const token = find(tokens, coin)
+  if (!token) return null
+  const response = await fetch(config.quote, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      dry: true,
+      swapType: 'EXACT_INPUT',
+      slippageTolerance: 100,
+      originAsset: USDC_ON_NEAR,
+      depositType: 'ORIGIN_CHAIN',
+      destinationAsset: token.assetId,
+      amount: (amount - payoutFee(amount)).toString(),
+      refundTo: NOBODY,
+      refundType: 'ORIGIN_CHAIN',
+      recipient,
+      recipientType: 'DESTINATION_CHAIN',
+      deadline: new Date(Date.now() + 15 * 60_000).toISOString(),
+    }),
+  }).catch(() => null)
+  if (!response) return null
+  const answer = (await response.json().catch(() => null)) as {
+    message?: string
+    quote?: { amountOutFormatted?: string; timeEstimate?: number }
+  } | null
+  if (response.status === 400 && /recipient/i.test(answer?.message ?? '')) {
+    throw new Error(`That does not look like a ${coin.network} address.`)
+  }
+  const gets = Number(answer?.quote?.amountOutFormatted)
+  if (!response.ok || !(gets > 0)) return null
+  return { gets: coins(gets, coin), seconds: answer?.quote?.timeEstimate ?? 0 }
+}

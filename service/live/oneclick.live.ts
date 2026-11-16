@@ -45,3 +45,20 @@ test('1Click answers 404 for an unknown deposit address', async () => {
     (error) => error instanceof OneClickError && error.status === 404,
   );
 });
+
+test('1Click takes the Preday fee out of a dry withdrawal quote', async () => {
+  const params = {
+    destinationAsset: 'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near',
+    amountIn: '100000000',
+    recipient: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7',
+    refundTo: RECIPIENT,
+    dry: true,
+  };
+  const quote = await oneClick.payout({ ...params, feeRecipient: RECIPIENT });
+
+  console.log('USDC on NEAR to USDT on Tron', quote);
+  assert.equal(quote.amountIn, params.amountIn);
+  // Stable to stable, so what is missing is the fee plus routing costs: more than 0.3%, well under 2%.
+  const kept = Number(quote.amountOut) / Number(quote.amountIn);
+  assert.ok(kept < 0.997 && kept > 0.98, `kept ${kept}`);
+});

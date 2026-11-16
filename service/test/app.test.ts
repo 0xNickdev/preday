@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { after, before, beforeEach, test } from 'node:test';
 import { createApp } from '../src/app.ts';
 import { OneClickError } from '../src/oneclick.ts';
-import type { Quote, QuoteParams, SwapStatus } from '../src/oneclick.ts';
+import type { PayoutParams, Quote, QuoteParams, SwapStatus } from '../src/oneclick.ts';
 
 const ORIGIN = 'https://app.preday.test';
 const VALID = {
@@ -22,6 +22,7 @@ const QUOTE: Quote = {
 };
 
 let quoteCalls: QuoteParams[];
+let payoutCalls: PayoutParams[];
 let quoteResult: () => Promise<Quote>;
 let tracked: [string, { account: string; memo?: string; deadline: string }][];
 let statuses: Record<string, SwapStatus>;
@@ -29,8 +30,13 @@ let statuses: Record<string, SwapStatus>;
 const server = createServer(
   createApp({
     predayContract: 'preday.near',
+    feeAccount: 'fees.preday.near',
     allowedOrigin: ORIGIN,
     oneClick: {
+      payout: (params) => {
+        payoutCalls.push(params);
+        return quoteResult();
+      },
       quote: (params) => {
         quoteCalls.push(params);
         return quoteResult();
@@ -51,6 +57,7 @@ before(async () => {
 after(() => server.close());
 beforeEach(() => {
   quoteCalls = [];
+  payoutCalls = [];
   quoteResult = async () => QUOTE;
   tracked = [];
   statuses = {};
@@ -158,6 +165,59 @@ test('POST /quote hides unexpected errors', async () => {
 
   assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), { error: 'Internal error' });
+});
+
+const PAYOUT = {
+  destinationAsset: 'nep141:tron-d28a265909efecdcee7c5028585214ea0b96f015.omft.near',
+  amount: '100000000',
+  recipient: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7',
+  refundTo: 'anna.near',
+};
+const postPayout = (body: unknown) => fetch(`${base}/payout-quote`, { method: 'POST', body: JSON.stringify(body) });
+
+test('POST /payout-quote quotes a withdrawal with the fee paid to the fee account and tracks nothing', async () => {
+  quoteResult = async () => ({ ...QUOTE, amountIn: '100000000', amountOut: '98952061', amountOutFormatted: '98.952061' });
+
+  const response = await postPayout(PAYOUT);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    depositAddress: '0xdeposit',
+    amountIn: '100000000',
+    amountOut: '98952061',
+    amountOutFormatted: '98.952061',
+    deadline: QUOTE.deadline,
+    feeBps: 30,
+  });
+  assert.deepEqual(payoutCalls, [
+    {
+      destinationAsset: PAYOUT.destinationAsset,
+      amountIn: '100000000',
+      recipient: PAYOUT.recipient,
+      refundTo: 'anna.near',
+      feeRecipient: 'fees.preday.near',
+    },
+  ]);
+  assert.deepEqual(tracked, []);
+});
+
+test('POST /payout-quote rejects a refund account that is not a NEAR account', async () => {
+  const response = await postPayout({ ...PAYOUT, refundTo: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045' });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: 'refundTo must be the NEAR account the money is sent from' });
+  assert.deepEqual(payoutCalls, []);
+});
+
+test('POST /payout-quote passes through the 1Click message when the quote is rejected', async () => {
+  quoteResult = async () => {
+    throw new OneClickError(400, 'recipient is not valid');
+  };
+
+  const response = await postPayout(PAYOUT);
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: 'recipient is not valid' });
 });
 
 test('GET /status returns the status of a tracked deposit', async () => {
