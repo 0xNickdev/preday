@@ -36,6 +36,7 @@ A freelancer claims `preday.app/anna` and sends it to clients instead of a walle
 - [Contract interface](#contract-interface)
 - [Run it](#run-it)
 - [Status and limits](#status-and-limits)
+- [Added after the deadline](#added-after-the-deadline)
 
 ## Why
 
@@ -292,9 +293,24 @@ Stated plainly:
 - **Upgradability.** The demo contract account still holds a full-access key, so its code can be replaced. A production deployment would delete that key.
 - **Cross-chain withdrawal fee.** 0.3%, taken by 1Click out of the swap and paid to the fee account. Sending to a NEAR account is free. Built and covered by tests and a live dry quote, never run with real money.
 
+## Added after the deadline
+
+Submissions closed on 14 November 2026 at 23:59 UTC. The submitted version is commit [`e90e3e2`](https://github.com/0xNickdev/preday/tree/e90e3e2) from 13 November. Everything below was added on 16 November, during judging, and is listed so nothing passes for submitted work. To review only the submitted version, check out `e90e3e2`.
+
+| Date (UTC) | Commit | What was added |
+| --- | --- | --- |
+| 16 Nov 2026 | [`2391eef`](https://github.com/0xNickdev/preday/commit/2391eef) | Mark late and write-off buttons on the dashboard of an open advance |
+| 16 Nov 2026 | [`2bda49a`](https://github.com/0xNickdev/preday/commit/2bda49a) | Pay page deposit step for real coins: address, QR code, deadline, status (only with `VITE_SERVICE_URL`) |
+| 16 Nov 2026 | [`9d677f0`](https://github.com/0xNickdev/preday/commit/9d677f0) | 0.3% fee on withdrawals to another network: service route `POST /payout-quote` and a live quote in the send form |
+| 16 Nov 2026 | [`a9f31f6`](https://github.com/0xNickdev/preday/commit/a9f31f6) | Docs and README for the three items above |
+| 16 Nov 2026 | [`569315e`](https://github.com/0xNickdev/preday/commit/569315e) | Sign in with a NEAR wallet |
+| 16 Nov 2026 | [`c36ae76`](https://github.com/0xNickdev/preday/commit/c36ae76) | README note on how wallet sign-in was checked |
+
+The live demo at [preday.vercel.app](https://preday.vercel.app/) was redeployed with these changes on 16 November. The contracts did not change: `preday-v2.testnet` is the same deployment as at submission.
+
 ## Disclosure
 
-- Everything in this repository was written during the hackathon, starting 12 November 2026. There is no earlier code.
+- The submitted version was written during the hackathon, starting 12 November 2026. There is no earlier code. Later additions are listed in [Added after the deadline](#added-after-the-deadline).
 - The code was written with an AI coding assistant, under human direction and review.
 
 ## License
