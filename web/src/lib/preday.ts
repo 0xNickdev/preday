@@ -152,6 +152,10 @@ export function claim() {
   return send('claim', {}, 'The money could not be sent. It is still waiting for you. Try again.')
 }
 
+/** Public calls: anyone may make them once the advance has gone without a payment for long enough. */
+export const markLate = (handle: string) => call({ contractId: config.contract, method: 'mark_late', args: { handle }, tgas: 30 })
+export const writeOff = (handle: string) => call({ contractId: config.contract, method: 'write_off', args: { handle }, tgas: 30 })
+
 /** Testnet stand-in for an identity check: the verifier approves whoever calls it. */
 export async function verify(handle: string) {
   const { verifier } = await getConfig()
@@ -236,6 +240,10 @@ const PLAIN: Record<string, string> = {
   'first deposit must exceed the locked minimum': 'The first deposit into the pool has to be more than $1.',
   'newcomer limit reached': 'The pool has lent as much as it can to first-time advances right now. Try again after some are paid back.',
   'daily verification limit reached': 'Identity checks are full for today. Try again tomorrow.',
+  'advance is not late yet': 'It is a little too early to mark this late. Try again in a few seconds.',
+  'advance cannot be written off yet': 'It is a little too early to write this off. Try again in a few seconds.',
+  'advance is already late': 'This advance is already marked late. Reload the page.',
+  'no open advance': 'This advance is already closed. Reload the page.',
   'shares are still locked': 'Money you added recently cannot be withdrawn yet. Try again a little later.',
 }
 
